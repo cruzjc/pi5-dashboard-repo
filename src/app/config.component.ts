@@ -103,10 +103,29 @@ const KNOWN_KEYS: KeyDef[] = [
 ];
 
 function safeReadClipboard(text: string): Promise<void> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard) {
-    return Promise.reject(new Error('Clipboard API unavailable'));
+  if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    return navigator.clipboard.writeText(text);
   }
-  return navigator.clipboard.writeText(text);
+
+  // Fallback for non-secure contexts (HTTP on LAN).
+  return new Promise((resolve, reject) => {
+    try {
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.setAttribute('readonly', '');
+      el.style.position = 'fixed';
+      el.style.top = '-1000px';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(el);
+      if (!ok) reject(new Error('Copy failed'));
+      else resolve();
+    } catch (e) {
+      reject(e instanceof Error ? e : new Error(String(e)));
+    }
+  });
 }
 
 @Component({
