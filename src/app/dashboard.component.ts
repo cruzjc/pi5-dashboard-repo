@@ -3,6 +3,8 @@ import { RouterLink } from '@angular/router';
 
 import { SECTIONS } from './sections';
 
+const HOME_HIDDEN_SLUGS = new Set(['bitcoin-lottery', 'trading']);
+
 @Component({
   selector: 'app-dashboard',
   imports: [RouterLink],
@@ -10,5 +12,5 @@ import { SECTIONS } from './sections';
   styleUrl: './dashboard.component.scss'
 })
 export class DashboardComponent {
-  protected readonly sections = SECTIONS;
+  protected readonly sections = SECTIONS.filter((section) => !HOME_HIDDEN_SLUGS.has(section.slug));
 }
