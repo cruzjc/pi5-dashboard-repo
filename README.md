@@ -1,59 +1,58 @@
-# Pi5DashboardRepo
+# Pi 5 Dashboard Repo
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.4.
+Unified Angular dashboard for the Pi 5. This repo is the consolidation target for the legacy Pi 2 surfaces (static pages + APIs).
 
-## Development server
+## URLs
 
-To start a local development server, run:
+- Prod (served by Caddy): `http://<pi5-ip>/`
+- Todo/checklist (stashed old landing page): `http://<pi5-ip>/todo`
 
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Local Dev
 
 ```bash
-ng generate component component-name
+cd ~/pi5-dashboard-repo
+npm install
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Then open `http://<pi5-ip>:4200/` (or `http://localhost:4200/` if running locally).
+
+## Build / Deploy
+
+This repo is configured to output production builds to:
+
+- `~/pi5-dashboard-build`
+
+Build:
 
 ```bash
-ng generate --help
+cd ~/pi5-dashboard-repo
+npm run build
 ```
 
-## Building
+Caddy serves the build output directly, so no reload is required after a successful build.
 
-To build the project run:
+Convenience:
 
 ```bash
-ng build
+./scripts/deploy.sh
 ```
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+## Caddy
 
-## Running unit tests
+Single-site SPA hosting:
 
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
+```caddyfile
+:80 {
+  root * /home/jeanclydecruz/pi5-dashboard-build
+  encode gzip zstd
+  try_files {path} {path}/ /index.html
+  file_server
+}
+```
+
+Note: Caddy runs as user `caddy` and needs execute permission on `/home/jeanclydecruz` to traverse into the build directory. We use an ACL for that:
 
 ```bash
-ng test
+sudo setfacl -m u:caddy:--x /home/jeanclydecruz
 ```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
