@@ -5,6 +5,10 @@ type PortalConfigResponse = {
   has?: Record<string, boolean>;
 };
 
+type PortalConfigValuesResponse = {
+  values?: Record<string, unknown>;
+};
+
 type PortalUpdateResponse = {
   ok?: boolean;
   changed?: string[];
@@ -98,6 +102,16 @@ const KEY_DEFS: KeyDef[] = [
   }
 ];
 
+function normalizeValue(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === 'string') return v;
+  try {
+    return JSON.stringify(v);
+  } catch {
+    return String(v);
+  }
+}
+
 @Component({
   selector: 'app-config',
   imports: [RouterLink],
@@ -109,12 +123,16 @@ export class ConfigComponent implements OnInit {
 
   protected readonly loading = signal(false);
   protected readonly savingKey = signal<string | null>(null);
+  protected readonly loadingValueKey = signal<string | null>(null);
   protected readonly error = signal('');
 
   protected readonly hasMap = signal<Record<string, boolean>>({});
   protected readonly drafts = signal<Record<string, string>>({});
   protected readonly reveals = signal<Record<string, boolean>>({});
   protected readonly updatedAt = signal('');
+
+  private readonly valuesLoaded = signal(false);
+  private readonly valuesMap = signal<Record<string, string | null>>({});
 
   protected readonly connected = computed(() =>
     !this.loading() && !this.error() && Object.keys(this.hasMap()).length > 0
@@ -150,9 +168,52 @@ export class ConfigComponent implements OnInit {
     return Boolean(this.reveals()[key]);
   }
 
-  protected toggleReveal(key: string): void {
+  private async ensureValuesLoaded(): Promise<void> {
+    if (this.valuesLoaded()) return;
+
+    const r = await fetch(`${PI2_PORTAL_API_BASE}/config/values`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = (await r.json()) as PortalConfigValuesResponse;
+
+    const raw = data?.values && typeof data.values === 'object' ? data.values : {};
+    const out: Record<string, string | null> = {};
+    for (const entry of this.entries) {
+      out[entry.key] = normalizeValue((raw as any)[entry.key]);
+    }
+
+    this.valuesMap.set(out);
+    this.valuesLoaded.set(true);
+  }
+
+  protected async toggleReveal(entry: KeyDef): Promise<void> {
+    const key = entry.key;
+
     const curr = this.reveals();
-    this.reveals.set({ ...curr, [key]: !curr[key] });
+    const nextReveal = !curr[key];
+    this.reveals.set({ ...curr, [key]: nextReveal });
+
+    if (!nextReveal) return;
+
+    // If there's already a draft, just reveal it.
+    if (this.draft(key).trim()) return;
+
+    // If Pi2 says it's configured, load the stored value into the field.
+    if (!this.has(key)) return;
+
+    this.loadingValueKey.set(key);
+    this.error.set('');
+
+    try {
+      await this.ensureValuesLoaded();
+      const stored = this.valuesMap()[key];
+      if (typeof stored === 'string' && stored.trim()) {
+        this.setDraft(key, stored);
+      }
+    } catch (e) {
+      this.error.set(e instanceof Error ? e.message : String(e));
+    } finally {
+      this.loadingValueKey.set(null);
+    }
   }
 
   protected inputType(key: string, entry: KeyDef): string {
@@ -171,6 +232,9 @@ export class ConfigComponent implements OnInit {
       const has = data?.has && typeof data.has === 'object' ? data.has : {};
       this.hasMap.set(has as Record<string, boolean>);
       this.updatedAt.set(new Date().toLocaleString());
+      // Values are fetched lazily only when requested via Show.
+      this.valuesLoaded.set(false);
+      this.valuesMap.set({});
     } catch (e) {
       this.error.set(e instanceof Error ? e.message : String(e));
       this.hasMap.set({});
