@@ -42,3 +42,6 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Runtime config (contains secrets; do not commit)
+public/runtime-config.json

@@ -3,6 +3,7 @@
   <h1>Mining Tools + Auto-Entry</h1>
   <p class='lead'>
     This section talks to the Pi2 proxy (Flask) at <code>/bitcoin/*</code>. Configure the proxy URL and API key below.
+    If <code>/runtime-config.json</code> exists, values can auto-load.
   </p>
 </section>
 
@@ -72,8 +73,11 @@
   </article>
 
   <article class='card'>
-    <h2>Mine (Toy Hashing)</h2>
-    <p class='muted'>Generates a few input variants and checks leading hex zeros against the current block info.</p>
+    <h2>Mine (Real PoW)</h2>
+    <p class='muted'>
+      Builds a real coinbase-only candidate block header and checks SHA256d(header) against the current <code>bits</code>
+      target. Finding a valid block is effectively impossible here, but the check is real.
+    </p>
 
     <div class='form'>
       <label>
@@ -86,7 +90,7 @@
       </label>
 
       <button type='button' class='btn orange' (click)='generateVariations()' [disabled]='!input().trim()'>
-        Generate Variations
+        Generate Seeds
       </button>
 
       @if (variations().length) {
@@ -96,19 +100,28 @@
           }
         </div>
 
-        <button type='button' class='btn green' (click)='mineAll()' [disabled]='mining() || !block()'>
-          {{ mining() ? 'Mining...' : 'Mine All' }}
+        <button type='button' class='btn green' (click)='mineRealPow()' [disabled]='mining() || !block()'>
+          {{ mining() ? 'Mining…' : 'Mine (Real PoW)' }}
         </button>
+      }
+
+      @if (bitsHex() && targetHex()) {
+        <div class='msg'>bits <code>{{ bitsHex() }}</code> | target <code>{{ targetHex() }}</code></div>
+      }
+
+      @if (miningMsg()) {
+        <div class='msg'>{{ miningMsg() }}</div>
       }
 
       @if (results().length) {
         <div class='results'>
-          @for (r of results(); track r.hash) {
-            <div class='result' [class.win]='r.win'>
-              <div class='nonce'><code>{{ r.nonce }}</code></div>
-              <div class='meta'>Zeros: <strong>{{ r.zeros }}</strong>/19 ({{ r.pct }}%)</div>
-              @if (r.win) {
-                <div class='winner'>WINNER</div>
+          @for (r of results(); track r.seed) {
+            <div class='result' [class.win]='r.hit'>
+              <div class='nonce'><code>{{ r.seed }}</code></div>
+              <div class='meta'>attempts <code>{{ r.attempts }}</code> | best nonce <code>{{ r.bestNonce }}</code></div>
+              <div class='meta'>best hash <code>{{ r.bestHash }}</code></div>
+              @if (r.hit) {
+                <div class='winner'>HIT: <code>{{ r.hitHash }}</code></div>
               }
             </div>
           }

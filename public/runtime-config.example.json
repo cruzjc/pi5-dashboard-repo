@@ -1,0 +1,7 @@
+{
+  "bitcoinLottery": {
+    "proxyUrl": "http://192.168.4.12/bitcoin",
+    "apiKey": "",
+    "wallet": ""
+  }
+}
