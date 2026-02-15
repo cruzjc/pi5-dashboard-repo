@@ -63,26 +63,5 @@ export const SECTIONS: LegacySection[] = [
       'http://192.168.4.12/queue/api/health',
       'http://192.168.4.12/queue/api/tasks'
     ]
-  },
-  {
-    slug: 'heartbeat-watch',
-    title: 'Heartbeat Watch',
-    summary: 'Device heartbeat web surface and status APIs currently on :8082.',
-    sources: [
-      'http://192.168.4.12:8082/',
-      'http://192.168.4.12:8082/api/state',
-      'http://192.168.4.12:8082/api/config'
-    ]
-  },
-  {
-    slug: 'portal-api',
-    title: 'Portal API',
-    summary: 'Token-gated backend used by management/settings/briefing flows.',
-    sources: [
-      'http://portal.pi2/portal-api/health',
-      'http://portal.pi2/portal-api/config',
-      'http://portal.pi2/portal-api/news',
-      'http://portal.pi2/portal-api/manage/services'
-    ]
   }
 ];

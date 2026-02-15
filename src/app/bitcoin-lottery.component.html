@@ -1,0 +1,221 @@
+<section class='hero'>
+  <p class='eyebrow'>Bitcoin Lottery</p>
+  <h1>Mining Tools + Auto-Entry</h1>
+  <p class='lead'>
+    This section talks to the Pi2 proxy (Flask) at <code>/bitcoin/*</code>. Configure the proxy URL and API key below.
+  </p>
+</section>
+
+<section class='grid'>
+  <article class='card'>
+    <h2>Connection</h2>
+
+    <div class='form'>
+      <label>
+        <span>Proxy URL</span>
+        <input
+          [value]='proxyUrl()'
+          (input)='proxyUrl.set(($any($event.target).value || "").toString())'
+          (blur)='persist()'
+          placeholder='http://192.168.4.12/bitcoin'
+        />
+      </label>
+
+      <label>
+        <span>API Key</span>
+        <input
+          type='password'
+          [value]='apiKey()'
+          (input)='apiKey.set(($any($event.target).value || "").toString())'
+          (blur)='persist()'
+          placeholder='paste X-API-Key'
+        />
+      </label>
+
+      <div class='row'>
+        <button type='button' class='btn' (click)='refreshAll()'>Refresh</button>
+        <button type='button' class='btn ghost' (click)='fetchBlockInfo()'>Block Info</button>
+      </div>
+
+      <div class='status'>
+        <span class='pill' [class.good]='status()==="connected"' [class.bad]='status()==="error"'>
+          {{ status().toUpperCase() }}
+        </span>
+        @if (block()) {
+          <span class='muted'>
+            height <code>{{ block()?.height }}</code> | chain <code>{{ block()?.chain }}</code>
+          </span>
+        }
+      </div>
+
+      @if (error()) {
+        <div class='msg bad'>{{ error() }}</div>
+      }
+
+      @if (quota()) {
+        <div class='quota'>
+          <div>
+            <span class='k'>RPC remaining</span>
+            <span class='v'><code>{{ quota()?.remaining_total }}</code></span>
+          </div>
+          <div>
+            <span class='k'>Auto remaining</span>
+            <span class='v'><code>{{ quota()?.remaining_auto }}</code></span>
+          </div>
+          <div>
+            <span class='k'>Used</span>
+            <span class='v'><code>{{ quota()?.used_total }}</code></span>
+          </div>
+        </div>
+      }
+    </div>
+  </article>
+
+  <article class='card'>
+    <h2>Mine (Toy Hashing)</h2>
+    <p class='muted'>Generates a few input variants and checks leading hex zeros against the current block info.</p>
+
+    <div class='form'>
+      <label>
+        <span>Meaningful value</span>
+        <input
+          [value]='input()'
+          (input)='input.set(($any($event.target).value || "").toString())'
+          placeholder='date, number, phrase'
+        />
+      </label>
+
+      <button type='button' class='btn orange' (click)='generateVariations()' [disabled]='!input().trim()'>
+        Generate Variations
+      </button>
+
+      @if (variations().length) {
+        <div class='chips'>
+          @for (v of variations(); track v) {
+            <div class='chip'><code>{{ v }}</code></div>
+          }
+        </div>
+
+        <button type='button' class='btn green' (click)='mineAll()' [disabled]='mining() || !block()'>
+          {{ mining() ? 'Mining...' : 'Mine All' }}
+        </button>
+      }
+
+      @if (results().length) {
+        <div class='results'>
+          @for (r of results(); track r.hash) {
+            <div class='result' [class.win]='r.win'>
+              <div class='nonce'><code>{{ r.nonce }}</code></div>
+              <div class='meta'>Zeros: <strong>{{ r.zeros }}</strong>/19 ({{ r.pct }}%)</div>
+              @if (r.win) {
+                <div class='winner'>WINNER</div>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </article>
+
+  <article class='card wide'>
+    <div class='head-row'>
+      <div>
+        <h2>Auto-Entry + Solo Mining</h2>
+        <div class='muted'>
+          Timer: <strong>{{ timerActive() === null ? '…' : (timerActive() ? 'ACTIVE' : 'INACTIVE') }}</strong>
+          <span class='sep'>|</span>
+          Running: <strong>{{ autoRunning() ? 'YES' : 'NO' }}</strong>
+          @if (autoPid()) { <span class='muted'>(pid {{ autoPid() }})</span> }
+          @if (logUpdatedAt()) { <span class='muted'>| logs {{ logUpdatedAt() }}</span> }
+        </div>
+      </div>
+      <div class='muted'>{{ cfgLoading() ? 'Loading…' : '' }}</div>
+    </div>
+
+    <div class='form two-col'>
+      <label class='span2'>
+        <span>Payout Address</span>
+        <input
+          [value]='wallet()'
+          (input)='wallet.set(($any($event.target).value || "").toString())'
+          (blur)='persist()'
+          placeholder='bc1...'
+        />
+        <small>Saved locally (and pushed to Pi2 proxy when you click Save Settings).</small>
+      </label>
+
+      <label class='toggle span2'>
+        <input type='checkbox' [checked]='soloEnabled()' (change)='soloEnabled.set(!!$any($event.target).checked)' />
+        <span>Enable solo mining (coinbase-only)</span>
+      </label>
+
+      <label>
+        <span>Hash Attempts / Run</span>
+        <input
+          type='number'
+          min='1'
+          max='2000000'
+          [value]='hashAttempts()'
+          (input)='hashAttempts.set(+$any($event.target).value || 0)'
+        />
+        <small>Higher uses more CPU per run.</small>
+      </label>
+
+      <label>
+        <span>Max Seeds</span>
+        <input
+          type='number'
+          min='1'
+          max='32'
+          [value]='maxSeeds()'
+          (input)='maxSeeds.set(+$any($event.target).value || 0)'
+        />
+        <small>Attempts split across top seeds.</small>
+      </label>
+
+      <label class='toggle span2'>
+        <input type='checkbox' [checked]='submitAsManual()' (change)='submitAsManual.set(!!$any($event.target).checked)' />
+        <span>Submit winning block as manual (uses reserved quota)</span>
+      </label>
+
+      <details class='adv span2'>
+        <summary>Advanced</summary>
+        <label>
+          <span>scriptPubKey (hex, overrides address)</span>
+          <input
+            [value]='scriptPubKeyHex()'
+            (input)='scriptPubKeyHex.set(($any($event.target).value || "").toString())'
+            placeholder='(optional) 0014... or 5120...'
+          />
+          <small>If set, this is used instead of the payout address.</small>
+        </label>
+      </details>
+
+      <div class='row span2'>
+        <button type='button' class='btn blue' (click)='saveAutoConfig()' [disabled]='cfgSaving() || !hasAuth()'>
+          {{ cfgSaving() ? 'Saving…' : 'Save Settings' }}
+        </button>
+        <button type='button' class='btn green' (click)='runAutoEntryNow()' [disabled]='autoRunning() || !hasAuth()'>
+          {{ autoRunning() ? 'Running…' : 'Run Now' }}
+        </button>
+        <button type='button' class='btn ghost' (click)='fetchLogs(false)' [disabled]='logsLoading() || !hasAuth()'>
+          {{ logsLoading() ? 'Loading…' : 'Refresh Logs' }}
+        </button>
+      </div>
+
+      @if (cfgMsg()) {
+        <div class='msg' [class.bad]='cfgMsg().toLowerCase().includes("fail") || cfgMsg().toLowerCase().includes("error")'>
+          {{ cfgMsg() }}
+        </div>
+      }
+
+      <div class='logs span2'>
+        <div class='logs-head'>
+          <div>auto_entry.log</div>
+          <div class='muted'>{{ logsLoading() ? 'loading…' : '' }}</div>
+        </div>
+        <pre>{{ logs().length ? logs().join('\n') : 'No logs yet' }}</pre>
+      </div>
+    </div>
+  </article>
+</section>
