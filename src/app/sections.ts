@@ -10,36 +10,31 @@ export const SECTIONS: LegacySection[] = [
     slug: 'angular-portal',
     title: 'Angular Portal Core',
     summary: 'Primary Angular portal currently served at / and :3000 on Pi 2.',
-    sources: [
-      'http://192.168.4.12/',
-      'http://192.168.4.12:3000/'
-    ]
+    sources: ['http://192.168.4.12/', 'http://192.168.4.12:3000/']
   },
   {
     slug: 'alt-openclaw-portal',
     title: 'Alt OpenClaw Portal',
     summary: 'Legacy static portal currently at /alt on Pi 2.',
-    sources: [
-      'http://192.168.4.12/alt'
-    ]
+    sources: ['http://192.168.4.12/alt']
   },
   {
     slug: 'openclaw-status',
     title: 'OpenClaw Status',
     summary: 'Status interface and API for OpenClaw health information.',
-    sources: [
-      'http://192.168.4.12/openclaw',
-      'http://192.168.4.12/api/openclaw/status'
-    ]
+    sources: ['http://192.168.4.12/openclaw', 'http://192.168.4.12/api/openclaw/status']
   },
   {
     slug: 'bitcoin-lottery',
     title: 'Bitcoin Lottery',
     summary: 'Lottery UI with proxy-backed API calls.',
-    sources: [
-      'http://192.168.4.12/bitcoin-lottery.html',
-      'http://192.168.4.12/bitcoin/*'
-    ]
+    sources: ['http://192.168.4.12/bitcoin-lottery.html', 'http://192.168.4.12/bitcoin/*']
+  },
+  {
+    slug: 'trading',
+    title: 'Trading',
+    summary: 'Alpaca account snapshot plus Pi2 strategy inventory (systemd + cron).',
+    sources: ['http://192.168.4.12/api/trading/status', 'http://portal.pi2/ui/trading.html']
   },
   {
     slug: 'portal-dashboard-pages',
@@ -59,9 +54,6 @@ export const SECTIONS: LegacySection[] = [
     slug: 'task-queue',
     title: 'Task Queue',
     summary: 'Queue workflows and wake coordination API currently proxied under /queue/*.',
-    sources: [
-      'http://192.168.4.12/queue/api/health',
-      'http://192.168.4.12/queue/api/tasks'
-    ]
+    sources: ['http://192.168.4.12/queue/api/health', 'http://192.168.4.12/queue/api/tasks']
   }
 ];

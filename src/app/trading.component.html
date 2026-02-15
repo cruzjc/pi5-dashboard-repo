@@ -1,0 +1,135 @@
+<section class='hero'>
+  <p class='eyebrow'>Trading</p>
+
+  <div class='title-row'>
+    <h1>Trading</h1>
+    <div class='actions'>
+      <button type='button' (click)='refresh(false)' [disabled]='loading()'>
+        {{ loading() ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Account snapshot comes from Pi2 <code>/api/trading/status</code>. Strategy inventory below reflects services + cron currently active on Pi2.
+  </p>
+
+  @if (error()) {
+    <p class='error'>{{ error() }}</p>
+  }
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/todo'>Todo</a>
+  </div>
+</section>
+
+<section class='summary'>
+  <article class='card'>
+    <h2>Account Summary</h2>
+
+    @if (status(); as s) {
+      <dl class='dl'>
+        <div>
+          <dt>Equity</dt>
+          <dd>{{ money(s.equity) }}</dd>
+        </div>
+        <div>
+          <dt>Cash</dt>
+          <dd>{{ money(s.cash) }}</dd>
+        </div>
+        <div>
+          <dt>Day P/L</dt>
+          <dd class='pl' [class.pos]='(s.dayPL ?? 0) > 0' [class.neg]='(s.dayPL ?? 0) < 0'>
+            {{ signedMoney(s.dayPL) }}
+          </dd>
+        </div>
+        <div>
+          <dt>Bot</dt>
+          <dd>{{ s.botRunning ? 'Running' : 'Stopped' }}</dd>
+        </div>
+        <div>
+          <dt>Last Update</dt>
+          <dd>{{ lastUpdateLabel() }}</dd>
+        </div>
+      </dl>
+    } @else {
+      <p class='muted'>No data loaded yet.</p>
+    }
+  </article>
+
+  <article class='card'>
+    <h2>Positions</h2>
+
+    @if (positions().length) {
+      <div class='table-wrap'>
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol</th>
+              <th class='num'>Qty</th>
+              <th class='num'>Avg</th>
+              <th class='num'>Current</th>
+              <th class='num'>Unrealized</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (p of positions(); track p.symbol) {
+              <tr>
+                <td><code>{{ p.symbol }}</code></td>
+                <td class='num'>{{ p.qty.toFixed(4) }}</td>
+                <td class='num'>{{ money(p.avg_entry_price) }}</td>
+                <td class='num'>{{ money(p.current_price) }}</td>
+                <td class='num' [class.pos]='p.unrealized_pl > 0' [class.neg]='p.unrealized_pl < 0'>
+                  {{ signedMoney(p.unrealized_pl) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <p class='muted'>No open positions reported.</p>
+    }
+  </article>
+</section>
+
+<section class='strategies'>
+  <header class='head'>
+    <h2>Strategies</h2>
+    <p>Each entry includes how it runs (systemd vs cron) and timing details.</p>
+  </header>
+
+  <div class='grid'>
+    @for (s of strategies; track s.name) {
+      <article class='strategy'>
+        <div class='strategy-head'>
+          <h3>{{ s.name }}</h3>
+          <span class='badge'>{{ s.kind }}</span>
+        </div>
+
+        <p class='timing'>{{ s.timing }}</p>
+
+        @if (s.schedule.length) {
+          <h4>Schedule</h4>
+          <ul>
+            @for (line of s.schedule; track line) {
+              <li><code>{{ line }}</code></li>
+            }
+          </ul>
+        }
+
+        <h4>Implementation</h4>
+        <ul>
+          @for (line of s.details; track line) {
+            <li><code>{{ line }}</code></li>
+          }
+        </ul>
+
+        @if (s.notes) {
+          <p class='notes'>{{ s.notes }}</p>
+        }
+      </article>
+    }
+  </div>
+</section>

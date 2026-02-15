@@ -13,6 +13,7 @@
           }
         </div>
       </details>
+      <a routerLink='/config' routerLinkActive='active'>Config</a>
     </nav>
 
     <details class='nav-mobile'>
@@ -20,6 +21,7 @@
       <div class='menu'>
         <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Home</a>
         <a routerLink='/todo' routerLinkActive='active'>Todo</a>
+        <a routerLink='/config' routerLinkActive='active'>Config</a>
         <div class='divider'></div>
         @for (section of sections; track section.slug) {
           <a [routerLink]="['/section', section.slug]">{{ section.title }}</a>

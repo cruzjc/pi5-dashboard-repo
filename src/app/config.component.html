@@ -1,0 +1,110 @@
+<section class='hero'>
+  <p class='eyebrow'>Configuration</p>
+
+  <div class='title-row'>
+    <h1>Keys</h1>
+    <div class='actions'>
+      <button type='button' (click)='refresh()' [disabled]='loading()'>
+        {{ loading() ? 'Refreshing...' : 'Refresh' }}
+      </button>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Manage keys stored on Pi2 (portal-api). Values are never displayed; set a new value or clear the stored one.
+  </p>
+
+  <div class='status' [class.ok]='connected()'>
+    <span class='dot' aria-hidden='true'></span>
+    <span>{{ statusText() }}</span>
+    @if (updatedAt()) {
+      <span class='sep' aria-hidden='true'></span>
+      <span class='meta'>Updated {{ updatedAt() }}</span>
+    }
+  </div>
+
+  @if (error()) {
+    <p class='error'>{{ error() }}</p>
+  }
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/todo'>Todo</a>
+  </div>
+</section>
+
+<section class='grid'>
+  @for (entry of entries; track entry.key) {
+    <article class='card' [class.configured]='has(entry.key)'>
+      <div class='card-head'>
+        <div class='left'>
+          <h2>{{ entry.label }}</h2>
+          <p class='key'><code>{{ entry.key }}</code></p>
+        </div>
+        <span class='badge' [class.on]='has(entry.key)'>
+          {{ has(entry.key) ? 'Configured' : 'Missing' }}
+        </span>
+      </div>
+
+      <p class='desc'>{{ entry.description }}</p>
+
+      <div class='field'>
+        @if (entry.multiline) {
+          <textarea
+            [value]='draft(entry.key)'
+            (input)='setDraft(entry.key, $any($event.target).value)'
+            [placeholder]='entry.placeholder ?? ""'
+            rows='3'
+            spellcheck='false'
+          ></textarea>
+        } @else {
+          <div class='input-row'>
+            <input
+              [type]='inputType(entry.key, entry)'
+              [value]='draft(entry.key)'
+              (input)='setDraft(entry.key, $any($event.target).value)'
+              [placeholder]='entry.placeholder ?? ""'
+              autocomplete='off'
+              spellcheck='false'
+            />
+            @if (entry.sensitive) {
+              <button type='button' class='mini' (click)='toggleReveal(entry.key)'>
+                {{ reveal(entry.key) ? 'Hide' : 'Show' }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <div class='card-actions'>
+        <button
+          type='button'
+          (click)='setKey(entry.key)'
+          [disabled]='savingKey() === entry.key || !draft(entry.key).trim()'
+        >
+          Set
+        </button>
+        <button
+          type='button'
+          class='danger'
+          (click)='clearKey(entry.key)'
+          [disabled]='savingKey() === entry.key || !has(entry.key)'
+        >
+          Clear
+        </button>
+      </div>
+
+      @if (savingKey() === entry.key) {
+        <p class='saving'>Saving...</p>
+      }
+    </article>
+  }
+</section>
+
+<section class='note'>
+  <h2>Notes</h2>
+  <ul>
+    <li>Backed by Pi2 portal-api and stored in <code>~/.portal-config.json</code>.</li>
+    <li>Pi5 dashboard proxies requests to Pi2; no secrets are committed to this repo.</li>
+  </ul>
+</section>
