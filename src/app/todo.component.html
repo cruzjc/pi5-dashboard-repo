@@ -1,0 +1,47 @@
+<section class='hero'>
+  <p class='eyebrow'>Migration Checklist</p>
+  <h1>Todo</h1>
+  <p class='lead'>
+    This page is the stashed copy of the original landing view. Use it as a living checklist while consolidating Pi 2 pages into this single Angular app.
+  </p>
+
+  <div class='progress'>
+    <div class='bar' aria-hidden='true'>
+      <div class='fill' [style.width.%]='pct()'></div>
+    </div>
+    <div class='meta'>
+      <div class='count'>{{ doneCount() }}/{{ totalCount() }} complete ({{ pct() }}%)</div>
+      <button type='button' (click)='reset()'>Reset</button>
+    </div>
+  </div>
+</section>
+
+<section class='grid'>
+  @for (section of sections; track section.slug) {
+    <article class='card' [class.done]='isDone(section.slug)'>
+      <label class='title-row'>
+        <input
+          type='checkbox'
+          [checked]='isDone(section.slug)'
+          (change)='toggle(section.slug)'
+        />
+        <span class='title'>{{ section.title }}</span>
+      </label>
+
+      <p class='summary'>{{ section.summary }}</p>
+
+      <div class='actions'>
+        <a [routerLink]="['/section', section.slug]">Open section plan</a>
+      </div>
+
+      <details class='sources'>
+        <summary>Legacy sources</summary>
+        <ul>
+          @for (source of section.sources; track source) {
+            <li><code>{{ source }}</code></li>
+          }
+        </ul>
+      </details>
+    </article>
+  }
+</section>

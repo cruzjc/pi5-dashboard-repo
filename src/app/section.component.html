@@ -15,11 +15,17 @@
       Next step: migrate UI + API integration into this route and retire the old endpoint after parity validation.
     </p>
 
-    <a routerLink='/'>Back to overview</a>
+    <div class='links'>
+      <a routerLink='/'>Home</a>
+      <a routerLink='/todo'>Todo</a>
+    </div>
   </section>
 } @else {
   <section class='panel'>
     <h1>Section not found</h1>
-    <a routerLink='/'>Back to overview</a>
+    <div class='links'>
+      <a routerLink='/'>Home</a>
+      <a routerLink='/todo'>Todo</a>
+    </div>
   </section>
 }

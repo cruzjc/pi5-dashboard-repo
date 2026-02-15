@@ -1,0 +1,54 @@
+<section class='hero'>
+  <div class='copy'>
+    <p class='eyebrow'>Pi 5 Dashboard</p>
+    <h1>Home</h1>
+    <p class='lead'>
+      A responsive foundation for adding widgets, controls, and consolidated tooling. Keep this page focused on fast navigation and at-a-glance health.
+    </p>
+
+    <div class='cta-row'>
+      <a class='cta primary' routerLink='/todo'>Migration Todo</a>
+      <a class='cta ghost' [routerLink]="['/section', 'angular-portal']">Portal Core Plan</a>
+    </div>
+  </div>
+
+  <div class='frame' aria-hidden='true'>
+    <div class='gridlines'></div>
+    <div class='pulse'></div>
+  </div>
+</section>
+
+<section class='strip'>
+  <article class='tile'>
+    <h2>Template Slots</h2>
+    <p>Add widgets here (status, services, alerts, logs). Keep each tile a self-contained feature component.</p>
+  </article>
+  <article class='tile'>
+    <h2>Mobile First</h2>
+    <p>This layout collapses to a single column with touch-friendly spacing and menu navigation.</p>
+  </article>
+  <article class='tile'>
+    <h2>SPA Hosting</h2>
+    <p>Caddy serves the build output with SPA fallback to <code>index.html</code>.</p>
+  </article>
+</section>
+
+<section class='modules'>
+  <header class='modules-head'>
+    <h2>Modules</h2>
+    <p>These are the consolidation targets from Pi 2. Each becomes a feature area as we migrate.</p>
+  </header>
+
+  <div class='module-grid'>
+    @for (section of sections; track section.slug) {
+      <a class='module' [routerLink]="['/section', section.slug]">
+        <div class='module-top'>
+          <h3>{{ section.title }}</h3>
+          <span class='chip'>plan</span>
+        </div>
+        <p>{{ section.summary }}</p>
+        <span class='open'>Open</span>
+      </a>
+    }
+  </div>
+</section>

@@ -1,17 +1,40 @@
 <div class='app-shell'>
-  <header class='masthead'>
+  <header class='topbar'>
     <a class='brand' routerLink='/'>Pi5 Unified Dashboard</a>
-    <p>Single Angular surface for portal, status, queue, and management tooling.</p>
-  </header>
 
-  <nav class='top-nav'>
-    <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Overview</a>
-    @for (section of sections; track section.slug) {
-      <a [routerLink]="['/section', section.slug]" routerLinkActive='active'>{{ section.title }}</a>
-    }
-  </nav>
+    <nav class='nav-wide'>
+      <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Home</a>
+      <a routerLink='/todo' routerLinkActive='active'>Todo</a>
+      <details class='sections'>
+        <summary>Sections</summary>
+        <div class='menu'>
+          @for (section of sections; track section.slug) {
+            <a [routerLink]="['/section', section.slug]">{{ section.title }}</a>
+          }
+        </div>
+      </details>
+    </nav>
+
+    <details class='nav-mobile'>
+      <summary aria-label='Menu'>Menu</summary>
+      <div class='menu'>
+        <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Home</a>
+        <a routerLink='/todo' routerLinkActive='active'>Todo</a>
+        <div class='divider'></div>
+        @for (section of sections; track section.slug) {
+          <a [routerLink]="['/section', section.slug]">{{ section.title }}</a>
+        }
+      </div>
+    </details>
+  </header>
 
   <main class='content'>
     <router-outlet />
   </main>
+
+  <footer class='footer'>
+    <span>Pi5 dashboard scaffold</span>
+    <span class='dot' aria-hidden='true'></span>
+    <a routerLink='/todo'>migration todo</a>
+  </footer>
 </div>

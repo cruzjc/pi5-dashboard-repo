@@ -1,18 +1,24 @@
 import { Routes } from '@angular/router';
 
-import { OverviewComponent } from './overview.component';
+import { DashboardComponent } from './dashboard.component';
 import { SectionComponent } from './section.component';
+import { TodoComponent } from './todo.component';
 
 export const routes: Routes = [
   {
     path: '',
-    component: OverviewComponent,
-    title: 'Pi5 Dashboard Overview'
+    component: DashboardComponent,
+    title: 'Pi5 Dashboard'
+  },
+  {
+    path: 'todo',
+    component: TodoComponent,
+    title: 'Migration Todo'
   },
   {
     path: 'section/:slug',
     component: SectionComponent,
-    title: 'Pi5 Dashboard Section'
+    title: 'Section Plan'
   },
   {
     path: '**',

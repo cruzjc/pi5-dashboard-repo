@@ -4,11 +4,11 @@ import { RouterLink } from '@angular/router';
 import { SECTIONS } from './sections';
 
 @Component({
-  selector: 'app-overview',
+  selector: 'app-dashboard',
   imports: [RouterLink],
-  templateUrl: './overview.component.html',
-  styleUrl: './overview.component.scss'
+  templateUrl: './dashboard.component.html',
+  styleUrl: './dashboard.component.scss'
 })
-export class OverviewComponent {
+export class DashboardComponent {
   protected readonly sections = SECTIONS;
 }

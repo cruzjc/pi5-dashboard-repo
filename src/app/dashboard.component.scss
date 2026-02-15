@@ -1,0 +1,242 @@
+:host {
+  display: block;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 1rem;
+  align-items: stretch;
+  padding: 1.4rem;
+  border-radius: 22px;
+  border: 1px solid rgba(110, 146, 173, 0.35);
+  background: linear-gradient(145deg, rgba(15, 18, 29, 0.92), rgba(18, 63, 78, 0.65));
+  overflow: hidden;
+}
+
+.copy {
+  min-width: 0;
+}
+
+.eyebrow {
+  color: #7ce9ff;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+h1 {
+  margin: 0.55rem 0 0.45rem;
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.lead {
+  margin: 0;
+  color: #d6e7ff;
+  max-width: 70ch;
+}
+
+.cta-row {
+  margin-top: 1.05rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  text-decoration: none;
+  font-size: 0.92rem;
+  border: 1px solid rgba(119, 161, 196, 0.45);
+  background: rgba(9, 14, 24, 0.65);
+  color: #eaf3ff;
+}
+
+.cta.primary {
+  color: #07141d;
+  border-color: rgba(125, 255, 204, 0.7);
+  background: linear-gradient(120deg, #7ce9ff, #7dffcc);
+}
+
+.cta.ghost {
+  background: rgba(9, 14, 24, 0.35);
+}
+
+.frame {
+  position: relative;
+  border-radius: 18px;
+  border: 1px solid rgba(125, 255, 204, 0.28);
+  background: radial-gradient(400px 220px at 25% 30%, rgba(125, 255, 204, 0.17), transparent),
+    radial-gradient(360px 200px at 85% 55%, rgba(124, 233, 255, 0.14), transparent),
+    rgba(5, 9, 15, 0.75);
+}
+
+.gridlines {
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+  background:
+    linear-gradient(rgba(125, 255, 204, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 255, 204, 0.12) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(closest-side, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0));
+}
+
+.pulse {
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(circle, rgba(124, 233, 255, 0.18), transparent 55%);
+  animation: drift 7s ease-in-out infinite;
+}
+
+.strip {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.tile {
+  background: rgba(9, 14, 24, 0.86);
+  border: 1px solid rgba(91, 121, 147, 0.36);
+  border-radius: 16px;
+  padding: 1rem;
+  animation: rise 420ms ease both;
+}
+
+.tile h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.tile p {
+  margin: 0.55rem 0 0;
+  color: #bdd1ec;
+  line-height: 1.45;
+}
+
+.tile code {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.modules {
+  margin-top: 1.15rem;
+}
+
+.modules-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: baseline;
+}
+
+.modules-head h2 {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.modules-head p {
+  margin: 0;
+  color: #bdd1ec;
+}
+
+.module-grid {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.95rem;
+}
+
+.module {
+  background: rgba(9, 14, 24, 0.86);
+  border: 1px solid rgba(91, 121, 147, 0.36);
+  border-radius: 16px;
+  padding: 1rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.module:hover {
+  transform: translateY(-2px);
+  border-color: rgba(125, 255, 204, 0.42);
+}
+
+.module-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.module h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.module p {
+  margin: 0.6rem 0 0.8rem;
+  color: #bdd1ec;
+  line-height: 1.45;
+  font-size: 0.93rem;
+}
+
+.chip {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(119, 161, 196, 0.45);
+  color: #d2e9ff;
+  background: rgba(9, 14, 24, 0.65);
+}
+
+.open {
+  color: #8cf6d3;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .frame {
+    min-height: 140px;
+  }
+
+  .strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+@keyframes drift {
+  0% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(8%, -6%);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
