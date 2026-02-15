@@ -273,14 +273,26 @@ button:disabled {
   }
 }
 
-.stored {
-  margin: 0 0 0.75rem;
+.right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.badge.warn {
+  border-color: rgba(255, 210, 125, 0.55);
+  color: rgba(255, 210, 125, 0.95);
+}
+
+.path {
+  margin: 0.65rem 0 0;
   color: #9cb4ce;
   font-size: 0.9rem;
 }
 
-.preview {
+.toast {
   margin: 0.55rem 0 0;
-  color: #9cb4ce;
-  font-size: 0.85rem;
+  color: rgba(125, 255, 204, 0.95);
+  font-size: 0.9rem;
 }

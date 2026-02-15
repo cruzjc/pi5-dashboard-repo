@@ -2,7 +2,7 @@
   <p class='eyebrow'>Configuration</p>
 
   <div class='title-row'>
-    <h1>Keys</h1>
+    <h1>Env Keys</h1>
     <div class='actions'>
       <button type='button' (click)='refresh()' [disabled]='loading()'>
         {{ loading() ? 'Refreshing...' : 'Refresh' }}
@@ -11,7 +11,7 @@
   </div>
 
   <p class='lead'>
-    Manage keys stored on Pi2 (portal-api). This page can load and display stored values; keep this dashboard private.
+    Keys are stored on Pi5 in a user-owned env file. This page can display full values; keep this dashboard private.
   </p>
 
   <div class='status' [class.ok]='connected()'>
@@ -22,6 +22,14 @@
       <span class='meta'>Updated {{ updatedAt() }}</span>
     }
   </div>
+
+  @if (envPath()) {
+    <p class='path'>Source: <code>{{ envPath() }}</code></p>
+  }
+
+  @if (toast()) {
+    <p class='toast'>{{ toast() }}</p>
+  }
 
   @if (error()) {
     <p class='error'>{{ error() }}</p>
@@ -34,30 +42,24 @@
 </section>
 
 <section class='grid'>
-  @for (entry of entries; track entry.key) {
-    <article class='card' [class.configured]='has(entry.key)'>
+  @for (entry of entries(); track entry.key) {
+    <article class='card' [class.configured]='isConfigured(entry.key)'>
       <div class='card-head'>
         <div class='left'>
           <h2>{{ entry.label }}</h2>
           <p class='key'><code>{{ entry.key }}</code></p>
         </div>
-        <span class='badge' [class.on]='has(entry.key)'>
-          {{ has(entry.key) ? 'Configured' : 'Missing' }}
-        </span>
+        <div class='right'>
+          @if (isDirty(entry.key)) {
+            <span class='badge warn'>Unsaved</span>
+          }
+          <span class='badge' [class.on]='isConfigured(entry.key)'>
+            {{ isConfigured(entry.key) ? 'Set' : 'Missing' }}
+          </span>
+        </div>
       </div>
 
       <p class='desc'>{{ entry.description }}</p>
-
-      @if (has(entry.key) && !draft(entry.key).trim()) {
-        <p class='stored'>
-          Stored on Pi2.
-          @if (entry.sensitive) {
-            Click <strong>Show</strong> to load it into the field.
-          } @else {
-            Paste a new value and click <strong>Set</strong> to replace it.
-          }
-        </p>
-      }
 
       <div class='field'>
         @if (entry.multiline) {
@@ -70,47 +72,24 @@
           ></textarea>
         } @else {
           <div class='input-row'>
-            @if (entry.sensitive) {
-              @if (reveal(entry.key)) {
-                <input
-                  type='text'
-                  [value]='draft(entry.key)'
-                  (input)='setDraft(entry.key, $any($event.target).value)'
-                  [placeholder]='entry.placeholder ?? ""'
-                  autocomplete='off'
-                  spellcheck='false'
-                />
-              } @else {
-                <input
-                  type='password'
-                  [value]='draft(entry.key)'
-                  (input)='setDraft(entry.key, $any($event.target).value)'
-                  [placeholder]='entry.placeholder ?? ""'
-                  autocomplete='off'
-                  spellcheck='false'
-                />
-              }
-            } @else {
-              <input
-                type='text'
-                [value]='draft(entry.key)'
-                (input)='setDraft(entry.key, $any($event.target).value)'
-                [placeholder]='entry.placeholder ?? ""'
-                autocomplete='off'
-                spellcheck='false'
-              />
-            }
+            <input
+              [type]='inputType(entry.key, entry)'
+              [value]='draft(entry.key)'
+              (input)='setDraft(entry.key, $any($event.target).value)'
+              [placeholder]='entry.placeholder ?? ""'
+              autocomplete='off'
+              spellcheck='false'
+            />
 
             @if (entry.sensitive) {
-              <button
-                type='button'
-                class='mini'
-                (click)='toggleReveal(entry)'
-                [disabled]='loadingValueKey() === entry.key'
-              >
-                {{ loadingValueKey() === entry.key ? 'Loading...' : (reveal(entry.key) ? 'Hide' : 'Show') }}
+              <button type='button' class='mini' (click)='toggleReveal(entry.key)'>
+                {{ reveal(entry.key) ? 'Hide' : 'Show' }}
               </button>
             }
+
+            <button type='button' class='mini' (click)='copy(entry.key)' [disabled]='!draft(entry.key).trim()'>
+              Copy
+            </button>
           </div>
         }
       </div>
@@ -121,13 +100,13 @@
           (click)='setKey(entry.key)'
           [disabled]='savingKey() === entry.key || !draft(entry.key).trim()'
         >
-          Set
+          Save
         </button>
         <button
           type='button'
           class='danger'
           (click)='clearKey(entry.key)'
-          [disabled]='savingKey() === entry.key || !has(entry.key)'
+          [disabled]='savingKey() === entry.key || !isConfigured(entry.key)'
         >
           Clear
         </button>
@@ -143,7 +122,7 @@
 <section class='note'>
   <h2>Notes</h2>
   <ul>
-    <li>Backed by Pi2 portal-api and stored in <code>~/.portal-config.json</code>.</li>
-    <li>Pi5 dashboard proxies requests to Pi2; no secrets are committed to this repo.</li>
+    <li>Values are read via the local Pi5 API at <code>/api/config/env</code>.</li>
+    <li>The env file is safe to <code>source</code> in shells if desired (it contains <code>export ...</code> lines).</li>
   </ul>
 </section>

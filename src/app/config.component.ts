@@ -1,15 +1,15 @@
 import { Component, OnInit, computed, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
-type PortalConfigResponse = {
-  has?: Record<string, boolean>;
+type EnvConfigResponse = {
+  ok?: boolean;
+  values?: Record<string, string>;
+  updatedAt?: string;
+  envPath?: string;
+  error?: string;
 };
 
-type PortalConfigValuesResponse = {
-  values?: Record<string, unknown>;
-};
-
-type PortalUpdateResponse = {
+type EnvUpdateResponse = {
   ok?: boolean;
   changed?: string[];
   error?: string;
@@ -24,77 +24,77 @@ type KeyDef = {
   multiline?: boolean;
 };
 
-const PI2_PORTAL_API_BASE = '/pi2/portal-api';
+const API_BASE = '/api/config/env';
 
-const KEY_DEFS: KeyDef[] = [
+const KNOWN_KEYS: KeyDef[] = [
   {
-    key: 'openaiApiKey',
+    key: 'OPENAI_API_KEY',
     label: 'OpenAI API Key',
     description: 'Used by portal AI features and trading prompts.',
     placeholder: 'sk-...',
     sensitive: true
   },
   {
-    key: 'openaiModel',
+    key: 'OPENAI_MODEL',
     label: 'OpenAI Model',
     description: 'Model name used for OpenAI calls (optional).',
     placeholder: 'gpt-4o-mini'
   },
   {
-    key: 'geminiApiKey',
+    key: 'GEMINI_API_KEY',
     label: 'Gemini API Key',
     description: 'Used for news summarization and briefings.',
     placeholder: 'AIza...',
     sensitive: true
   },
   {
-    key: 'inworldApiKey',
+    key: 'INWORLD_API_KEY',
     label: 'Inworld API Key',
     description: 'Optional: used for TTS voice sessions.',
     placeholder: 'inworld_...',
     sensitive: true
   },
   {
-    key: 'inworldSecret',
+    key: 'INWORLD_SECRET',
     label: 'Inworld API Secret',
     description: 'Optional: secret used for Inworld TTS.',
     placeholder: '...',
     sensitive: true
   },
   {
-    key: 'alpacaKeyId',
+    key: 'ALPACA_API_KEY_ID',
     label: 'Alpaca Key ID',
     description: 'Trading account API key id.',
     placeholder: 'PK...',
     sensitive: true
   },
   {
-    key: 'alpacaSecretKey',
+    key: 'ALPACA_API_SECRET_KEY',
     label: 'Alpaca Secret Key',
     description: 'Trading account API secret.',
     placeholder: '...',
     sensitive: true
   },
   {
-    key: 'alpacaBaseUrl',
+    key: 'APCA_API_BASE_URL',
     label: 'Alpaca Base URL',
     description: 'Example: https://paper-api.alpaca.markets or https://api.alpaca.markets',
     placeholder: 'https://api.alpaca.markets'
   },
   {
-    key: 'ntfyUrl',
+    key: 'NTFY_URL',
     label: 'ntfy URL',
     description: 'Optional: base URL for ntfy notifications.',
     placeholder: 'https://ntfy.sh'
   },
   {
-    key: 'ntfyTopic',
+    key: 'NTFY_TOPIC',
     label: 'ntfy Topic',
     description: 'Optional: topic for notifications.',
     placeholder: 'my-topic'
   },
   {
-    key: 'newsFeeds',
+    key: 'NEWS_FEEDS',
     label: 'News Feeds',
     description: 'Optional: comma-separated or JSON list of feeds (stored as a string).',
     placeholder: 'https://example.com/rss, https://another.com/rss',
@@ -102,14 +102,11 @@ const KEY_DEFS: KeyDef[] = [
   }
 ];
 
-function normalizeValue(v: unknown): string | null {
-  if (v == null) return null;
-  if (typeof v === 'string') return v;
-  try {
-    return JSON.stringify(v);
-  } catch {
-    return String(v);
+function safeReadClipboard(text: string): Promise<void> {
+  if (typeof navigator === 'undefined' || !navigator.clipboard) {
+    return Promise.reject(new Error('Clipboard API unavailable'));
   }
+  return navigator.clipboard.writeText(text);
 }
 
 @Component({
@@ -119,40 +116,59 @@ function normalizeValue(v: unknown): string | null {
   styleUrl: './config.component.scss'
 })
 export class ConfigComponent implements OnInit {
-  protected readonly entries = KEY_DEFS;
-
   protected readonly loading = signal(false);
   protected readonly savingKey = signal<string | null>(null);
-  protected readonly loadingValueKey = signal<string | null>(null);
   protected readonly error = signal('');
 
-  protected readonly hasMap = signal<Record<string, boolean>>({});
+  protected readonly updatedAt = signal('');
+  protected readonly envPath = signal('');
+
+  private readonly serverValues = signal<Record<string, string>>({});
   protected readonly drafts = signal<Record<string, string>>({});
   protected readonly reveals = signal<Record<string, boolean>>({});
-  protected readonly updatedAt = signal('');
 
-  private readonly valuesLoaded = signal(false);
-  private readonly valuesMap = signal<Record<string, string | null>>({});
+  protected readonly toast = signal('');
+
+  private readonly knownKeySet = new Set(KNOWN_KEYS.map((k) => k.key));
+
+  protected readonly entries = computed(() => {
+    const values = this.serverValues();
+    const extra = Object.keys(values)
+      .filter((k) => !this.knownKeySet.has(k))
+      .sort((a, b) => a.localeCompare(b))
+      .map(
+        (k): KeyDef => ({
+          key: k,
+          label: k,
+          description: 'Custom env var (stored on Pi5).',
+          placeholder: '',
+          sensitive: true
+        })
+      );
+    return [...KNOWN_KEYS, ...extra];
+  });
 
   protected readonly connected = computed(() =>
-    !this.loading() && !this.error() && Object.keys(this.hasMap()).length > 0
+    !this.loading() && !this.error() && Object.keys(this.serverValues()).length > 0
   );
 
   protected readonly statusText = computed(() => {
-    if (this.loading()) return 'Loading Pi2 config...';
+    if (this.loading()) return 'Loading Pi5 env...';
     if (this.error()) return 'Unavailable';
-    const keys = Object.keys(this.hasMap());
+    const keys = Object.keys(this.serverValues());
     if (!keys.length) return 'Not loaded';
-    const configured = Object.values(this.hasMap()).filter(Boolean).length;
-    return `Loaded (${configured}/${this.entries.length} configured)`;
+    const configured = Object.values(this.serverValues()).filter((v) => String(v || '').trim().length > 0)
+      .length;
+    return `Loaded (${configured}/${keys.length} set)`;
   });
 
   ngOnInit(): void {
     void this.refresh();
   }
 
-  protected has(key: string): boolean {
-    return Boolean(this.hasMap()[key]);
+  protected isConfigured(key: string): boolean {
+    const v = this.serverValues()[key];
+    return typeof v === 'string' && v.trim().length > 0;
   }
 
   protected draft(key: string): string {
@@ -164,56 +180,19 @@ export class ConfigComponent implements OnInit {
     this.drafts.set({ ...curr, [key]: value });
   }
 
+  protected isDirty(key: string): boolean {
+    const server = this.serverValues()[key] ?? '';
+    const draft = this.drafts()[key] ?? '';
+    return server !== draft;
+  }
+
   protected reveal(key: string): boolean {
     return Boolean(this.reveals()[key]);
   }
 
-  private async ensureValuesLoaded(): Promise<void> {
-    if (this.valuesLoaded()) return;
-
-    const r = await fetch(`${PI2_PORTAL_API_BASE}/config/values`, { cache: 'no-store' });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const data = (await r.json()) as PortalConfigValuesResponse;
-
-    const raw = data?.values && typeof data.values === 'object' ? data.values : {};
-    const out: Record<string, string | null> = {};
-    for (const entry of this.entries) {
-      out[entry.key] = normalizeValue((raw as any)[entry.key]);
-    }
-
-    this.valuesMap.set(out);
-    this.valuesLoaded.set(true);
-  }
-
-  protected async toggleReveal(entry: KeyDef): Promise<void> {
-    const key = entry.key;
-
+  protected toggleReveal(key: string): void {
     const curr = this.reveals();
-    const nextReveal = !curr[key];
-    this.reveals.set({ ...curr, [key]: nextReveal });
-
-    if (!nextReveal) return;
-
-    // If there's already a draft, just reveal it.
-    if (this.draft(key).trim()) return;
-
-    // If Pi2 says it's configured, load the stored value into the field.
-    if (!this.has(key)) return;
-
-    this.loadingValueKey.set(key);
-    this.error.set('');
-
-    try {
-      await this.ensureValuesLoaded();
-      const stored = this.valuesMap()[key];
-      if (typeof stored === 'string' && stored.trim()) {
-        this.setDraft(key, stored);
-      }
-    } catch (e) {
-      this.error.set(e instanceof Error ? e.message : String(e));
-    } finally {
-      this.loadingValueKey.set(null);
-    }
+    this.reveals.set({ ...curr, [key]: !curr[key] });
   }
 
   protected inputType(key: string, entry: KeyDef): string {
@@ -221,30 +200,48 @@ export class ConfigComponent implements OnInit {
     return this.reveal(key) ? 'text' : 'password';
   }
 
+  protected async copy(key: string): Promise<void> {
+    this.toast.set('');
+    const v = this.draft(key);
+    if (!v) return;
+
+    try {
+      await safeReadClipboard(v);
+      this.toast.set(`Copied ${key}`);
+      window.setTimeout(() => this.toast.set(''), 1500);
+    } catch (e) {
+      this.error.set(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   protected async refresh(): Promise<void> {
     this.loading.set(true);
     this.error.set('');
 
     try {
-      const r = await fetch(`${PI2_PORTAL_API_BASE}/config`, { cache: 'no-store' });
+      const r = await fetch(API_BASE, { cache: 'no-store' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const data = (await r.json()) as PortalConfigResponse;
-      const has = data?.has && typeof data.has === 'object' ? data.has : {};
-      this.hasMap.set(has as Record<string, boolean>);
-      this.updatedAt.set(new Date().toLocaleString());
-      // Values are fetched lazily only when requested via Show.
-      this.valuesLoaded.set(false);
-      this.valuesMap.set({});
+      const data = (await r.json()) as EnvConfigResponse;
+      if (!data || data.ok !== true) {
+        throw new Error(data?.error || 'Failed to load env');
+      }
+
+      const values = data.values && typeof data.values === 'object' ? data.values : {};
+      this.serverValues.set(values);
+      this.drafts.set({ ...values });
+      this.updatedAt.set(data.updatedAt ? String(data.updatedAt) : new Date().toISOString());
+      this.envPath.set(data.envPath ? String(data.envPath) : '');
     } catch (e) {
       this.error.set(e instanceof Error ? e.message : String(e));
-      this.hasMap.set({});
+      this.serverValues.set({});
+      this.drafts.set({});
     } finally {
       this.loading.set(false);
     }
   }
 
   private async update(set: Record<string, string | null>): Promise<void> {
-    const r = await fetch(`${PI2_PORTAL_API_BASE}/config/update`, {
+    const r = await fetch(`${API_BASE}/update`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -254,25 +251,21 @@ export class ConfigComponent implements OnInit {
     });
 
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
-
-    const data = (await r.json()) as PortalUpdateResponse;
+    const data = (await r.json()) as EnvUpdateResponse;
     if (data && data.ok) return;
     if (data && typeof data.error === 'string' && data.error) throw new Error(data.error);
+    throw new Error('Update failed');
   }
 
   protected async setKey(key: string): Promise<void> {
-    const value = this.draft(key).trim();
-    if (!value) return;
+    const value = this.draft(key);
+    if (!value.trim()) return;
 
     this.savingKey.set(key);
     this.error.set('');
 
     try {
       await this.update({ [key]: value });
-      const curr = this.drafts();
-      const next = { ...curr };
-      delete next[key];
-      this.drafts.set(next);
       await this.refresh();
     } catch (e) {
       this.error.set(e instanceof Error ? e.message : String(e));
