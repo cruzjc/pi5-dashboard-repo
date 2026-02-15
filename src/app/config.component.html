@@ -11,7 +11,7 @@
   </div>
 
   <p class='lead'>
-    Manage keys stored on Pi2 (portal-api). Values are never displayed; set a new value or clear the stored one.
+    Manage keys stored on Pi2 (portal-api). Stored values are never returned to the browser; “Show” only reveals what you’ve typed in the input.
   </p>
 
   <div class='status' [class.ok]='connected()'>
@@ -48,6 +48,10 @@
 
       <p class='desc'>{{ entry.description }}</p>
 
+      @if (has(entry.key) && !draft(entry.key).trim()) {
+        <p class='stored'>Stored on Pi2. Paste a new value and click <strong>Set</strong> to replace it.</p>
+      }
+
       <div class='field'>
         @if (entry.multiline) {
           <textarea
@@ -59,20 +63,47 @@
           ></textarea>
         } @else {
           <div class='input-row'>
-            <input
-              [type]='inputType(entry.key, entry)'
-              [value]='draft(entry.key)'
-              (input)='setDraft(entry.key, $any($event.target).value)'
-              [placeholder]='entry.placeholder ?? ""'
-              autocomplete='off'
-              spellcheck='false'
-            />
+            @if (entry.sensitive) {
+              @if (reveal(entry.key)) {
+                <input
+                  type='text'
+                  [value]='draft(entry.key)'
+                  (input)='setDraft(entry.key, $any($event.target).value)'
+                  [placeholder]='entry.placeholder ?? ""'
+                  autocomplete='off'
+                  spellcheck='false'
+                />
+              } @else {
+                <input
+                  type='password'
+                  [value]='draft(entry.key)'
+                  (input)='setDraft(entry.key, $any($event.target).value)'
+                  [placeholder]='entry.placeholder ?? ""'
+                  autocomplete='off'
+                  spellcheck='false'
+                />
+              }
+            } @else {
+              <input
+                type='text'
+                [value]='draft(entry.key)'
+                (input)='setDraft(entry.key, $any($event.target).value)'
+                [placeholder]='entry.placeholder ?? ""'
+                autocomplete='off'
+                spellcheck='false'
+              />
+            }
+
             @if (entry.sensitive) {
               <button type='button' class='mini' (click)='toggleReveal(entry.key)'>
                 {{ reveal(entry.key) ? 'Hide' : 'Show' }}
               </button>
             }
           </div>
+
+          @if (entry.sensitive && reveal(entry.key) && draft(entry.key).trim()) {
+            <p class='preview'>Showing draft text (not the stored value).</p>
+          }
         }
       </div>
 
