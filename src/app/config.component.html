@@ -72,14 +72,25 @@
           ></textarea>
         } @else {
           <div class='input-row'>
-            <input
-              [type]='inputType(entry.key, entry)'
-              [value]='draft(entry.key)'
-              (input)='setDraft(entry.key, $any($event.target).value)'
-              [placeholder]='entry.placeholder ?? ""'
-              autocomplete='off'
-              spellcheck='false'
-            />
+            @if (entry.sensitive && !reveal(entry.key)) {
+              <input
+                type='password'
+                [value]='draft(entry.key)'
+                (input)='setDraft(entry.key, $any($event.target).value)'
+                [placeholder]='entry.placeholder ?? ""'
+                autocomplete='off'
+                spellcheck='false'
+              />
+            } @else {
+              <input
+                type='text'
+                [value]='draft(entry.key)'
+                (input)='setDraft(entry.key, $any($event.target).value)'
+                [placeholder]='entry.placeholder ?? ""'
+                autocomplete='off'
+                spellcheck='false'
+              />
+            }
 
             @if (entry.sensitive) {
               <button type='button' class='mini' (click)='toggleReveal(entry.key)'>

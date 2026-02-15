@@ -3,6 +3,7 @@ import { Routes } from '@angular/router';
 import { BitcoinLotteryComponent } from './bitcoin-lottery.component';
 import { ConfigComponent } from './config.component';
 import { DashboardComponent } from './dashboard.component';
+import { NewsSummaryComponent } from './news-summary.component';
 import { SectionComponent } from './section.component';
 import { TodoComponent } from './todo.component';
 import { TradingComponent } from './trading.component';
@@ -27,6 +28,11 @@ export const routes: Routes = [
     path: 'section/bitcoin-lottery',
     component: BitcoinLotteryComponent,
     title: 'Bitcoin Lottery'
+  },
+  {
+    path: 'section/news-summary',
+    component: NewsSummaryComponent,
+    title: 'News Summary'
   },
   {
     path: 'section/trading',

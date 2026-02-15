@@ -7,6 +7,12 @@ export type LegacySection = {
 
 export const SECTIONS: LegacySection[] = [
   {
+    slug: 'news-summary',
+    title: 'News Summary',
+    summary: 'AI Briefing: hard-coded RSS sources, persona summary, optional TTS narration.',
+    sources: ['/api/news', '/api/news/refresh', '/api/audio/*']
+  },
+  {
     slug: 'angular-portal',
     title: 'Angular Portal Core',
     summary: 'Primary Angular portal currently served at / and :3000 on Pi 2.',
