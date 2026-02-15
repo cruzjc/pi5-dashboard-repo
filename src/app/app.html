@@ -1,0 +1,17 @@
+<div class='app-shell'>
+  <header class='masthead'>
+    <a class='brand' routerLink='/'>Pi5 Unified Dashboard</a>
+    <p>Single Angular surface for portal, status, queue, and management tooling.</p>
+  </header>
+
+  <nav class='top-nav'>
+    <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Overview</a>
+    @for (section of sections; track section.slug) {
+      <a [routerLink]="['/section', section.slug]" routerLinkActive='active'>{{ section.title }}</a>
+    }
+  </nav>
+
+  <main class='content'>
+    <router-outlet />
+  </main>
+</div>

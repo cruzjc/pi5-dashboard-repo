@@ -1,0 +1,61 @@
+:host {
+  display: block;
+}
+
+.panel {
+  background: rgba(11, 16, 27, 0.9);
+  border: 1px solid rgba(86, 118, 149, 0.42);
+  border-radius: 20px;
+  padding: 1.3rem;
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.79rem;
+  color: #87c4ff;
+}
+
+h1 {
+  margin: 0.35rem 0 0.4rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+h2 {
+  margin: 1rem 0 0.45rem;
+  font-size: 1rem;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+p {
+  margin: 0;
+  color: #d2e1f3;
+}
+
+ul {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+code {
+  font-family: 'IBM Plex Mono', monospace;
+  background: rgba(23, 33, 53, 0.8);
+  border: 1px solid rgba(111, 149, 185, 0.35);
+  border-radius: 8px;
+  padding: 0.12rem 0.42rem;
+  word-break: break-all;
+}
+
+.next {
+  margin-top: 1rem;
+}
+
+a {
+  margin-top: 1rem;
+  display: inline-block;
+  color: #84f0cf;
+  text-decoration: none;
+}

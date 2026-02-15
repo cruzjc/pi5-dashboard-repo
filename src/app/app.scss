@@ -1,0 +1,61 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  color: #eaf3ff;
+}
+
+.app-shell {
+  min-height: 100vh;
+  padding: 1rem;
+  background:
+    radial-gradient(1100px 550px at 12% -20%, rgba(102, 166, 255, 0.32), transparent),
+    radial-gradient(900px 500px at 100% 0%, rgba(33, 226, 173, 0.24), transparent),
+    linear-gradient(170deg, #060912, #0a1221 56%, #0a1524);
+}
+
+.masthead {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.brand {
+  color: #f2f8ff;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(1.25rem, 2.8vw, 2.05rem);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.masthead p {
+  margin: 0.35rem 0 0;
+  color: #bfd4ea;
+}
+
+.top-nav {
+  max-width: 1100px;
+  margin: 0.95rem auto 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.top-nav a {
+  text-decoration: none;
+  color: #d2e9ff;
+  border: 1px solid rgba(119, 161, 196, 0.45);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.84rem;
+  background: rgba(15, 21, 35, 0.85);
+}
+
+.top-nav a.active {
+  color: #07141d;
+  background: linear-gradient(120deg, #7ce9ff, #7dffcc);
+  border-color: rgba(125, 255, 204, 0.7);
+}
+
+.content {
+  max-width: 1100px;
+  margin: 0 auto;
+}

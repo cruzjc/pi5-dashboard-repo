@@ -1,0 +1,88 @@
+export type LegacySection = {
+  slug: string;
+  title: string;
+  summary: string;
+  sources: string[];
+};
+
+export const SECTIONS: LegacySection[] = [
+  {
+    slug: 'angular-portal',
+    title: 'Angular Portal Core',
+    summary: 'Primary Angular portal currently served at / and :3000 on Pi 2.',
+    sources: [
+      'http://192.168.4.12/',
+      'http://192.168.4.12:3000/'
+    ]
+  },
+  {
+    slug: 'alt-openclaw-portal',
+    title: 'Alt OpenClaw Portal',
+    summary: 'Legacy static portal currently at /alt on Pi 2.',
+    sources: [
+      'http://192.168.4.12/alt'
+    ]
+  },
+  {
+    slug: 'openclaw-status',
+    title: 'OpenClaw Status',
+    summary: 'Status interface and API for OpenClaw health information.',
+    sources: [
+      'http://192.168.4.12/openclaw',
+      'http://192.168.4.12/api/openclaw/status'
+    ]
+  },
+  {
+    slug: 'bitcoin-lottery',
+    title: 'Bitcoin Lottery',
+    summary: 'Lottery UI with proxy-backed API calls.',
+    sources: [
+      'http://192.168.4.12/bitcoin-lottery.html',
+      'http://192.168.4.12/bitcoin/*'
+    ]
+  },
+  {
+    slug: 'portal-dashboard-pages',
+    title: 'Portal Dashboard Legacy Pages',
+    summary: 'Legacy dashboard and /ui pages under portal.pi2 host routing.',
+    sources: [
+      'http://portal.pi2/dashboard',
+      'http://portal.pi2/ui/briefing.html',
+      'http://portal.pi2/ui/github.html',
+      'http://portal.pi2/ui/manage.html',
+      'http://portal.pi2/ui/settings.html',
+      'http://portal.pi2/ui/trading.html',
+      'http://portal.pi2/ui/voices.html'
+    ]
+  },
+  {
+    slug: 'task-queue',
+    title: 'Task Queue',
+    summary: 'Queue workflows and wake coordination API currently proxied under /queue/*.',
+    sources: [
+      'http://192.168.4.12/queue/api/health',
+      'http://192.168.4.12/queue/api/tasks'
+    ]
+  },
+  {
+    slug: 'heartbeat-watch',
+    title: 'Heartbeat Watch',
+    summary: 'Device heartbeat web surface and status APIs currently on :8082.',
+    sources: [
+      'http://192.168.4.12:8082/',
+      'http://192.168.4.12:8082/api/state',
+      'http://192.168.4.12:8082/api/config'
+    ]
+  },
+  {
+    slug: 'portal-api',
+    title: 'Portal API',
+    summary: 'Token-gated backend used by management/settings/briefing flows.',
+    sources: [
+      'http://portal.pi2/portal-api/health',
+      'http://portal.pi2/portal-api/config',
+      'http://portal.pi2/portal-api/news',
+      'http://portal.pi2/portal-api/manage/services'
+    ]
+  }
+];
