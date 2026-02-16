@@ -5,6 +5,7 @@ import { ConfigComponent } from './config.component';
 import { DashboardComponent } from './dashboard.component';
 import { NewsSummaryComponent } from './news-summary.component';
 import { GameBriefingComponent } from './game-briefing.component';
+import { PodcastVideosComponent } from './podcast-videos.component';
 import { SectionComponent } from './section.component';
 import { TodoComponent } from './todo.component';
 import { TradingComponent } from './trading.component';
@@ -40,6 +41,11 @@ export const routes: Routes = [
     path: 'section/game-briefing',
     component: GameBriefingComponent,
     title: 'Game Briefing'
+  },
+  {
+    path: 'section/podcast-videos',
+    component: PodcastVideosComponent,
+    title: 'Podcast Videos'
   },
   {
     path: 'section/trading',

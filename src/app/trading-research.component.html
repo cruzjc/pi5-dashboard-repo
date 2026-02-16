@@ -1,5 +1,5 @@
 <section class='hero'>
-  <p class='eyebrow'>Pi2 Migration</p>
+  <p class='eyebrow'>Pi5 Local</p>
 
   <div class='title-row'>
     <h1>Trading Research</h1>
@@ -10,17 +10,17 @@
       <button
         type='button'
         class='accent'
-        (click)='refreshFromPi2()'
+        (click)='forceRefresh()'
         [disabled]='loading() || refreshing()'
       >
-        {{ refreshing() ? 'Refreshing...' : 'Refresh From Pi2' }}
+        {{ refreshing() ? 'Refreshing...' : 'Force Refresh' }}
       </button>
     </div>
   </div>
 
   <p class='lead'>
-    Ported from <code>/alt</code> on Pi2: the full Research tab plus <strong>Today's Top Picks</strong>
-    from Overview and <strong>Morning Scanner Results</strong> from Trading.
+    Local Pi5 research runtime: parity for the old <code>/alt</code> Research tab plus
+    <strong>Today's Top Picks</strong> and <strong>Morning Scanner Results</strong>.
   </p>
 
   <div class='meta'>
@@ -37,7 +37,7 @@
       <span class='v'>{{ openclawAtLabel() }}</span>
     </div>
     <div>
-      <span class='k'>Pi2 Source</span>
+      <span class='k'>Data Source</span>
       <span class='v'><code>{{ snapshot()?.sourceBaseUrl || '—' }}</code></span>
     </div>
   </div>
@@ -102,7 +102,7 @@
 <section class='grid'>
   <article class='card'>
     <h2>Today's Top Picks</h2>
-    <p class='muted'>From Overview tab on Pi2.</p>
+    <p class='muted'>From the local Pi5 research output.</p>
 
     <div class='table-wrapper'>
       <table>
@@ -142,7 +142,7 @@
 
   <article class='card'>
     <h2>Morning Scanner Results</h2>
-    <p class='muted'>From Trading tab on Pi2 (parsed from OpenClaw trade log).</p>
+    <p class='muted'>Derived from local top picks and momentum signals.</p>
 
     <div class='table-wrapper'>
       <table>

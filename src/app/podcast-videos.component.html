@@ -1,0 +1,68 @@
+<section class='hero'>
+  <p class='eyebrow'>YouTube Curation</p>
+
+  <div class='title-row'>
+    <h1>Podcast Videos</h1>
+    <div class='actions'>
+      <button type='button' (click)='refresh()' [disabled]='loading() || refreshing()'>
+        {{ loading() ? 'Loading...' : 'Refresh' }}
+      </button>
+      <button type='button' class='accent' (click)='regenerate()' [disabled]='loading() || refreshing()'>
+        {{ refreshing() ? 'Building...' : 'Rebuild Playlist' }}
+      </button>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Daily playlist from StarTalk Shorts, TechLinked videos, Linus Tech Tips Shorts, and David Bombal Shorts.
+    Latest uploads are prioritized first, then older videos are randomly added until the 1-hour target is filled.
+  </p>
+
+  <div class='meta'>
+    <div><span class='k'>Generated</span><span class='v'>{{ generatedAt() }}</span></div>
+    <div><span class='k'>Total</span><span class='v'>{{ totalLabel() }}</span></div>
+    <div><span class='k'>Target</span><span class='v'>{{ targetLabel() }}</span></div>
+    <div><span class='k'>Latest Picks</span><span class='v'>{{ recentCount() }}</span></div>
+    <div><span class='k'>Random Fill</span><span class='v'>{{ randomCount() }}</span></div>
+  </div>
+
+  @if (error()) {
+    <p class='error'>{{ error() }}</p>
+  }
+
+  @if (warnings().length) {
+    <div class='warn'>
+      <p>Some sources failed:</p>
+      <ul>
+        @for (w of warnings(); track w) {
+          <li>{{ w }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/config'>Config</a>
+  </div>
+</section>
+
+<section class='card'>
+  <h2>Playlist</h2>
+
+  @if (items().length) {
+    <ol class='playlist'>
+      @for (item of items(); track item.videoId || item.link || $index) {
+        <li>
+          <a [href]='item.link || "#"' target='_blank' rel='noreferrer'>{{ item.title || item.link || 'Untitled' }}</a>
+          <span class='src'>{{ item.sourceName || 'Source' }}</span>
+          <span class='tag'>{{ item.mode === 'shorts' ? 'Short' : 'Video' }}</span>
+          <span class='tag'>{{ reasonLabel(item) }}</span>
+          <span class='time'>{{ itemMinutes(item) }}</span>
+        </li>
+      }
+    </ol>
+  } @else {
+    <p class='muted'>No videos available yet.</p>
+  }
+</section>

@@ -19,6 +19,13 @@ export const SECTIONS: LegacySection[] = [
     sources: ['/api/games/briefing', '/api/games/briefing/refresh', '/api/audio/*']
   },
   {
+    slug: 'podcast-videos',
+    title: 'Podcast Videos',
+    summary:
+      'Daily curated YouTube playlist from favorite podcast channels (latest first, then random fill to ~1 hour).',
+    sources: ['/api/podcast-videos', '/api/podcast-videos/refresh']
+  },
+  {
     slug: 'angular-portal',
     title: 'Angular Portal Core',
     summary: 'Primary Angular portal currently served at / and :3000 on Pi 2.',
@@ -51,13 +58,13 @@ export const SECTIONS: LegacySection[] = [
   {
     slug: 'trading-research',
     title: 'Trading Research',
-    summary: 'Pi2 alt portal research tab + overview top picks + morning scanner results.',
+    summary: 'Pi5-local research runtime + overview top picks + morning scanner results.',
     sources: [
       '/api/trading-research',
       '/api/trading-research/refresh',
-      'http://192.168.4.12/alt/api/research',
-      'http://192.168.4.12/alt/api/openclaw/status',
-      'http://192.168.4.12/alt/api/research_journal.json'
+      '~/.pi5-dashboard-data/trading/research.json',
+      '~/.pi5-dashboard-data/trading/research_journal.json',
+      '~/pi5-dashboard-repo/trading-research/enhanced_researcher.py'
     ]
   },
   {

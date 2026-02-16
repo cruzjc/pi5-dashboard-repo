@@ -1,0 +1,136 @@
+:host {
+  display: block;
+}
+
+.hero,
+.card {
+  background: rgba(9, 14, 24, 0.88);
+  border: 1px solid rgba(91, 121, 147, 0.36);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.hero {
+  background: linear-gradient(145deg, rgba(11, 22, 29, 0.95), rgba(34, 27, 10, 0.65));
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.82rem;
+  color: rgba(255, 215, 150, 0.95);
+}
+
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+h1,
+h2 {
+  margin: 0.5rem 0;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.lead,
+.muted {
+  color: #d6e7ff;
+}
+
+.actions,
+.links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+button,
+.links a {
+  background: rgba(9, 14, 24, 0.9);
+  border: 1px solid rgba(91, 121, 147, 0.45);
+  color: #eaf3ff;
+  border-radius: 999px;
+  padding: 0.42rem 0.78rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button.accent {
+  border-color: rgba(255, 215, 150, 0.55);
+  background: rgba(50, 36, 10, 0.7);
+}
+
+.meta {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.55rem;
+}
+
+.meta > div {
+  background: rgba(6, 14, 26, 0.55);
+  border: 1px solid rgba(119, 161, 196, 0.28);
+  border-radius: 12px;
+  padding: 0.65rem;
+  display: grid;
+}
+
+.k {
+  font-size: 0.76rem;
+  color: #9cb4ce;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.v,
+li a {
+  color: #eaf3ff;
+}
+
+.warn,
+.error {
+  margin-top: 0.7rem;
+  color: #ffd2aa;
+}
+
+.card {
+  margin-top: 1rem;
+}
+
+.playlist {
+  margin: 0.4rem 0 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.playlist li {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.src {
+  color: #bdd1ec;
+  font-size: 0.86rem;
+}
+
+.tag,
+.time {
+  font-size: 0.78rem;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid rgba(119, 161, 196, 0.35);
+  border-radius: 999px;
+  color: #d6e7ff;
+}
+
+@media (max-width: 900px) {
+  .playlist li {
+    grid-template-columns: 1fr;
+  }
+}

@@ -192,7 +192,7 @@ export class TradingResearchComponent implements OnInit {
     void this.load(false);
   }
 
-  protected refreshFromPi2(): void {
+  protected forceRefresh(): void {
     void this.load(true);
   }
 

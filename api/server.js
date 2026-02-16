@@ -4,6 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 
 const HOST = process.env.PI5_DASHBOARD_API_HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PI5_DASHBOARD_API_PORT || '8092', 10);
@@ -14,6 +15,7 @@ const DATA_DIR =
   process.env.PI5_DASHBOARD_DATA_DIR || path.join(os.homedir(), '.pi5-dashboard-data');
 const BRIEFINGS_DIR = path.join(DATA_DIR, 'briefings');
 const GAME_BRIEFINGS_DIR = path.join(DATA_DIR, 'game-briefings');
+const PODCAST_VIDEOS_DIR = path.join(DATA_DIR, 'podcast-videos');
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
 
 const CATEGORY_PRIORITIES = [
@@ -242,25 +244,6 @@ const NEWS_SOURCES = [
 ];
 
 const DEFAULT_PERSONAS = [
-  {
-    name: 'ARIA',
-    voiceId: 'Ashley',
-    personality:
-      'You are ARIA, an AI news anchor. You are concise, technically fluent, and slightly witty. Avoid hype. Explain key context clearly.'
-  },
-  {
-    name: 'The Analyst',
-    voiceId: 'Ashley',
-    personality:
-      'You are a calm markets-and-tech analyst. You speak in short paragraphs with pragmatic takeaways and risk framing. No fluff.'
-  },
-  {
-    name: 'Chaos Anchor',
-    voiceId: 'Ashley',
-    personality:
-      'You are an energetic news anchor. You are punchy, playful, and fast. Still accurate and not misleading.'
-  },
-
   // Ported from Pi2 portal personalities.
   {
     name: 'Bagpipe',
@@ -318,6 +301,39 @@ const GENERIC_GAME_SOURCES = [
   }
 ];
 
+const PODCAST_VIDEO_TARGET_SECONDS = Number.parseInt(
+  process.env.PODCAST_VIDEO_TARGET_SECONDS || '3600',
+  10
+);
+const PODCAST_VIDEO_RECENT_HOURS = Number.parseInt(process.env.PODCAST_VIDEO_RECENT_HOURS || '30', 10);
+
+const PODCAST_VIDEO_SOURCES = [
+  {
+    id: 'P1',
+    name: 'StarTalk (Shorts)',
+    mode: 'shorts',
+    channelUrl: 'https://www.youtube.com/@StarTalk'
+  },
+  {
+    id: 'P2',
+    name: 'TechLinked (Videos)',
+    mode: 'videos',
+    channelUrl: 'https://www.youtube.com/@techlinked'
+  },
+  {
+    id: 'P3',
+    name: 'Linus Tech Tips (Shorts)',
+    mode: 'shorts',
+    channelUrl: 'https://www.youtube.com/@LinusTechTips'
+  },
+  {
+    id: 'P4',
+    name: 'David Bombal (Shorts)',
+    mode: 'shorts',
+    channelUrl: 'https://www.youtube.com/@davidbombal'
+  }
+];
+
 
 const PI2_ALT_BASE_URL = String(process.env.PI2_ALT_BASE_URL || 'http://192.168.4.12/alt').replace(
   /\/+$/,
@@ -327,6 +343,38 @@ const TRADING_RESEARCH_CACHE_MS = Number.parseInt(
   process.env.TRADING_RESEARCH_CACHE_MS || '60000',
   10
 );
+const TRADING_RESEARCH_LOCAL_ONLY = String(process.env.TRADING_RESEARCH_LOCAL_ONLY || '1') !== '0';
+const TRADING_RESEARCH_LOCAL_STALE_MS = Number.parseInt(
+  process.env.TRADING_RESEARCH_LOCAL_STALE_MS || '21600000',
+  10
+);
+const TRADING_RESEARCH_RUN_TIMEOUT_MS = Number.parseInt(
+  process.env.TRADING_RESEARCH_RUN_TIMEOUT_MS || '300000',
+  10
+);
+const TRADING_RESEARCH_DATA_DIR =
+  process.env.TRADING_RESEARCH_DATA_DIR || path.join(DATA_DIR, 'trading');
+const TRADING_RESEARCH_OUTPUT_FILE =
+  process.env.TRADING_RESEARCH_OUTPUT_FILE || path.join(TRADING_RESEARCH_DATA_DIR, 'research.json');
+const TRADING_RESEARCH_JOURNAL_FILE =
+  process.env.TRADING_RESEARCH_JOURNAL_FILE ||
+  path.join(TRADING_RESEARCH_DATA_DIR, 'research_journal.json');
+const TRADING_RESEARCH_SCRIPT =
+  process.env.TRADING_RESEARCH_SCRIPT ||
+  path.join(os.homedir(), 'pi5-dashboard-repo', 'trading-research', 'enhanced_researcher.py');
+const TRADING_RESEARCH_LOG_FILE =
+  process.env.TRADING_RESEARCH_LOG_FILE ||
+  path.join(TRADING_RESEARCH_DATA_DIR, 'research-agent-on-demand.log');
+const DEFAULT_TRADING_RESEARCH_PYTHON = path.join(
+  os.homedir(),
+  'pi5-dashboard-repo',
+  '.venv-trading-research',
+  'bin',
+  'python3'
+);
+const TRADING_RESEARCH_PYTHON =
+  process.env.TRADING_RESEARCH_PYTHON ||
+  (fs.existsSync(DEFAULT_TRADING_RESEARCH_PYTHON) ? DEFAULT_TRADING_RESEARCH_PYTHON : 'python3');
 
 const USER_AGENT = 'pi5-dashboard/1.0 (+local LAN)';
 
@@ -660,6 +708,124 @@ function stableListKey(list) {
   return out.join('|');
 }
 
+function makeSeededRandom(seed) {
+  let h = 2166136261;
+  const txt = String(seed || 'seed');
+  for (let i = 0; i < txt.length; i++) {
+    h ^= txt.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let state = h >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffleWithRandom(list, rand) {
+  const out = list.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const t = out[i];
+    out[i] = out[j];
+    out[j] = t;
+  }
+  return out;
+}
+
+function parseYouTubeVideoId(rawUrl) {
+  try {
+    const u = new URL(String(rawUrl || ''));
+    if (u.hostname === 'youtu.be') {
+      return u.pathname.replace(/^\/+/, '').split('/')[0] || '';
+    }
+    if (u.pathname.startsWith('/watch')) {
+      return u.searchParams.get('v') || '';
+    }
+    if (u.pathname.startsWith('/shorts/')) {
+      return u.pathname.split('/')[2] || '';
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+function podcastVideosPath(date) {
+  return path.join(PODCAST_VIDEOS_DIR, `${date}.json`);
+}
+
+function readPodcastVideos(date) {
+  const file = podcastVideosPath(date);
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writePodcastVideosAtomic(date, obj) {
+  ensureDir(PODCAST_VIDEOS_DIR, 0o700);
+  const file = podcastVideosPath(date);
+  const tmp = `${file}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, file);
+  fs.chmodSync(file, 0o600);
+}
+
+function estimateVideoSeconds(item, source) {
+  if (item.isShort) return 60;
+  if (String(source?.name || '').toLowerCase().includes('techlinked')) return 600;
+  return 540;
+}
+
+function detectShortFromMeta(item) {
+  const text = `${item.title || ''} ${item.contentSnippet || ''}`.toLowerCase();
+  if (text.includes('#shorts')) return true;
+  if (text.includes(' youtube shorts')) return true;
+  if (String(item.link || '').includes('/shorts/')) return true;
+  return false;
+}
+
+async function resolveYouTubeFeedUrl(channelUrl) {
+  const u = String(channelUrl || '').trim();
+  if (!u) throw new Error('missing channel url');
+
+  const direct = u.match(/channel\/(UC[a-zA-Z0-9_-]+)/);
+  if (direct && direct[1]) {
+    return `https://www.youtube.com/feeds/videos.xml?channel_id=${direct[1]}`;
+  }
+
+  const r = await fetch(u, {
+    signal: AbortSignal.timeout(10_000),
+    headers: {
+      'User-Agent': USER_AGENT,
+      Accept: 'text/html,application/xhtml+xml'
+    }
+  });
+  if (!r.ok) throw new Error(`channel page HTTP ${r.status}`);
+  const html = await r.text();
+
+  const patterns = [
+    /"externalId":"(UC[a-zA-Z0-9_-]+)"/,
+    /"channelId":"(UC[a-zA-Z0-9_-]+)"/,
+    /feeds\/videos\.xml\?channel_id=(UC[a-zA-Z0-9_-]+)/,
+    /channel\/(UC[a-zA-Z0-9_-]+)/
+  ];
+
+  for (const p of patterns) {
+    const m = p.exec(html);
+    if (m && m[1]) {
+      return `https://www.youtube.com/feeds/videos.xml?channel_id=${m[1]}`;
+    }
+  }
+
+  throw new Error('could not resolve channel id');
+}
 
 function briefingPath(date) {
   return path.join(BRIEFINGS_DIR, `${date}.json`);
@@ -897,6 +1063,8 @@ function serveAudio(res, name) {
 const inFlightByDate = new Map();
 const inFlightGameByKey = new Map();
 const inFlightTradingResearchByMode = new Map();
+const inFlightPodcastByDate = new Map();
+let inFlightTradingResearchRun = null;
 
 let tradingResearchCache = { at: 0, payload: null };
 
@@ -1352,6 +1520,156 @@ async function getOrGenerateGameBriefing(force) {
   return p;
 }
 
+async function generatePodcastVideos(force) {
+  const date = localDateString();
+  if (!force) {
+    const existing = readPodcastVideos(date);
+    if (existing) return existing;
+  }
+
+  const sources = PODCAST_VIDEO_SOURCES.slice();
+  const recentCutoffMs =
+    Date.now() -
+    3600000 *
+      (Number.isFinite(PODCAST_VIDEO_RECENT_HOURS) && PODCAST_VIDEO_RECENT_HOURS > 0
+        ? PODCAST_VIDEO_RECENT_HOURS
+        : 30);
+
+  const fetchResults = await mapLimit(sources, 4, async (source) => {
+    try {
+      const feedUrl = await resolveYouTubeFeedUrl(source.channelUrl);
+      const raw = await fetchAndParseFeed(feedUrl);
+      const normalized = [];
+
+      for (const item of raw.slice(0, 40)) {
+        const videoId = parseYouTubeVideoId(item.link);
+        if (!videoId) continue;
+        const publishedAt = item.pubDate || '';
+        const publishedMs = Number.isNaN(Date.parse(publishedAt)) ? 0 : Date.parse(publishedAt);
+        const isShort = detectShortFromMeta(item);
+
+        const mode = String(source.mode || 'videos');
+        if (mode === 'shorts' && !isShort) continue;
+        if (mode === 'videos' && isShort) continue;
+
+        normalized.push({
+          sourceId: source.id,
+          sourceName: source.name,
+          mode,
+          title: item.title || `YouTube ${videoId}`,
+          link: `https://www.youtube.com/watch?v=${videoId}`,
+          videoId,
+          publishedAt,
+          publishedMs,
+          isShort,
+          estimatedSeconds: estimateVideoSeconds({ isShort }, source)
+        });
+      }
+
+      normalized.sort((a, b) => b.publishedMs - a.publishedMs);
+      return { source, items: normalized, feedUrl, error: '' };
+    } catch (e) {
+      return {
+        source,
+        items: [],
+        feedUrl: '',
+        error: e instanceof Error ? e.message : String(e)
+      };
+    }
+  });
+
+  const allItems = [];
+  const errors = {};
+  const sourceMeta = [];
+
+  for (const result of fetchResults) {
+    if (result.error) errors[result.source.id] = result.error;
+    sourceMeta.push({
+      id: result.source.id,
+      name: result.source.name,
+      mode: result.source.mode,
+      feedUrl: result.feedUrl || '',
+      count: result.items.length
+    });
+    for (const item of result.items) allItems.push(item);
+  }
+
+  const deduped = [];
+  const seen = new Set();
+  for (const item of allItems) {
+    const key = item.videoId || item.link;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(item);
+  }
+
+  const recentItems = deduped
+    .filter((v) => v.publishedMs >= recentCutoffMs)
+    .sort((a, b) => b.publishedMs - a.publishedMs);
+  const olderItems = deduped.filter((v) => v.publishedMs < recentCutoffMs);
+
+  const targetSeconds =
+    Number.isFinite(PODCAST_VIDEO_TARGET_SECONDS) && PODCAST_VIDEO_TARGET_SECONDS > 0
+      ? PODCAST_VIDEO_TARGET_SECONDS
+      : 3600;
+
+  const playlist = [];
+  let totalSeconds = 0;
+
+  for (const item of recentItems) {
+    playlist.push({ ...item, pickReason: 'recent' });
+    totalSeconds += item.estimatedSeconds;
+  }
+
+  if (totalSeconds < targetSeconds && olderItems.length) {
+    const rand = makeSeededRandom(`${date}:podcast-videos`);
+    const randomized = shuffleWithRandom(olderItems, rand);
+    for (const item of randomized) {
+      playlist.push({ ...item, pickReason: 'fill-random' });
+      totalSeconds += item.estimatedSeconds;
+      if (totalSeconds >= targetSeconds) break;
+    }
+  }
+
+  const output = {
+    date,
+    generatedAt: nowIso(),
+    targetSeconds,
+    targetMinutes: Math.round(targetSeconds / 60),
+    totalSeconds,
+    totalMinutes: Math.round(totalSeconds / 60),
+    recentCutoffHours:
+      Number.isFinite(PODCAST_VIDEO_RECENT_HOURS) && PODCAST_VIDEO_RECENT_HOURS > 0
+        ? PODCAST_VIDEO_RECENT_HOURS
+        : 30,
+    exceededTargetWithRecent: totalSeconds > targetSeconds && recentItems.length > 0,
+    sourceMeta,
+    playlist,
+    errors
+  };
+
+  writePodcastVideosAtomic(date, output);
+  return output;
+}
+
+async function getOrGeneratePodcastVideos(force) {
+  const date = localDateString();
+  const key = `${date}:${force ? 'force' : 'cache'}`;
+  const existing = inFlightPodcastByDate.get(key);
+  if (existing) return existing;
+
+  const p = (async () => {
+    try {
+      return await generatePodcastVideos(force);
+    } finally {
+      inFlightPodcastByDate.delete(key);
+    }
+  })();
+
+  inFlightPodcastByDate.set(key, p);
+  return p;
+}
+
 
 function buildPi2AltUrl(pathname) {
   const suffix = String(pathname || '').startsWith('/') ? String(pathname || '') : `/${pathname || ''}`;
@@ -1414,13 +1732,147 @@ function parseAccountSnapshotFromTradeLog(logText) {
   };
 }
 
-async function fetchJsonWithTimeout(url) {
+function readJsonFileSafe(filePath) {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    if (!raw.trim()) return null;
+    return JSON.parse(raw);
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return null;
+    throw e;
+  }
+}
+
+function getFileAgeMs(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    return Date.now() - stat.mtimeMs;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+function buildScannerCandidatesFromResearch(research) {
+  const picks = Array.isArray(research?.top_picks) ? research.top_picks : [];
+  const out = [];
+
+  for (const pick of picks.slice(0, 12)) {
+    const score = parseNumberLoose(pick?.score);
+    const close = parseNumberLoose(pick?.price);
+    const roc3 = parseNumberLoose(pick?.change_pct);
+    const volSurge = parseNumberLoose(pick?.vol_surge);
+    const momentum5d = parseNumberLoose(pick?.momentum_5d);
+
+    const directionRaw = String(pick?.trade_idea?.direction || '')
+      .trim()
+      .toLowerCase();
+    let dir = 'neutral';
+    if (directionRaw.includes('call') || directionRaw.includes('bull')) dir = 'bull';
+    if (directionRaw.includes('put') || directionRaw.includes('bear')) dir = 'bear';
+
+    out.push({
+      ticker: String(pick?.ticker || '').toUpperCase(),
+      score: score == null ? null : score,
+      dir,
+      close: close == null ? null : close,
+      roc3: roc3 == null ? null : roc3,
+      volSurge: volSurge == null ? null : volSurge,
+      rs5d: momentum5d == null ? null : momentum5d / 100
+    });
+  }
+
+  return out;
+}
+
+function runTradingResearchScript() {
+  if (inFlightTradingResearchRun) return inFlightTradingResearchRun;
+
+  ensureDir(TRADING_RESEARCH_DATA_DIR, 0o700);
+
+  const p = new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      PI5_DASHBOARD_ENV_PATH: ENV_PATH,
+      TRADING_RESEARCH_DATA_DIR
+    };
+
+    const child = spawn(TRADING_RESEARCH_PYTHON, [TRADING_RESEARCH_SCRIPT], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    let stderr = '';
+    const cap = 16000;
+
+    const logStream = fs.createWriteStream(TRADING_RESEARCH_LOG_FILE, {
+      flags: 'a',
+      mode: 0o600
+    });
+
+    logStream.write(`\n[${nowIso()}] on-demand trading research run started\n`);
+
+    child.stdout.on('data', (chunk) => {
+      const text = String(chunk);
+      if (stdout.length < cap) stdout += text.slice(0, cap - stdout.length);
+      logStream.write(text);
+    });
+
+    child.stderr.on('data', (chunk) => {
+      const text = String(chunk);
+      if (stderr.length < cap) stderr += text.slice(0, cap - stderr.length);
+      logStream.write(text);
+    });
+
+    const timeoutMs =
+      Number.isFinite(TRADING_RESEARCH_RUN_TIMEOUT_MS) && TRADING_RESEARCH_RUN_TIMEOUT_MS > 0
+        ? TRADING_RESEARCH_RUN_TIMEOUT_MS
+        : 300000;
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM');
+    }, timeoutMs);
+
+    child.on('error', (err) => {
+      clearTimeout(timeout);
+      logStream.write(`[${nowIso()}] on-demand run failed to start: ${err.message}\n`);
+      logStream.end();
+      reject(err);
+    });
+
+    child.on('close', (code, signal) => {
+      clearTimeout(timeout);
+      logStream.write(`[${nowIso()}] on-demand run exited code=${code} signal=${signal || 'none'}\n`);
+      logStream.end();
+
+      if (code === 0) {
+        resolve({ ok: true, stdout, stderr });
+        return;
+      }
+
+      const reason = signal ? `signal ${signal}` : `exit ${code}`;
+      reject(new Error(`trading research agent failed (${reason}): ${(stderr || stdout).slice(0, 300)}`));
+    });
+  }).finally(() => {
+    inFlightTradingResearchRun = null;
+  });
+
+  inFlightTradingResearchRun = p;
+  return p;
+}
+
+async function fetchJsonWithTimeout(url, opts = {}) {
+  const timeoutMs =
+    Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0 ? opts.timeoutMs : 15_000;
+  const headers = {
+    'User-Agent': USER_AGENT,
+    Accept: 'application/json, text/plain, */*',
+    ...(opts.headers && typeof opts.headers === 'object' ? opts.headers : {})
+  };
+
   const r = await fetch(url, {
-    signal: AbortSignal.timeout(15_000),
-    headers: {
-      'User-Agent': USER_AGENT,
-      Accept: 'application/json, text/plain, */*'
-    }
+    signal: AbortSignal.timeout(timeoutMs),
+    method: opts.method || 'GET',
+    headers
   });
 
   if (!r.ok) {
@@ -1437,16 +1889,178 @@ async function fetchJsonWithTimeout(url) {
   }
 }
 
-async function generateTradingResearchSnapshot(force) {
-  const cacheWindow =
-    Number.isFinite(TRADING_RESEARCH_CACHE_MS) && TRADING_RESEARCH_CACHE_MS > 0
-      ? TRADING_RESEARCH_CACHE_MS
-      : 60_000;
+async function fetchAlpacaAccountSnapshot(env) {
+  const key =
+    env?.ALPACA_API_KEY_ID || env?.APCA_API_KEY_ID || env?.ALPACA_API_KEY || env?.APCA_API_KEY;
+  const secret =
+    env?.ALPACA_API_SECRET_KEY ||
+    env?.APCA_API_SECRET_KEY ||
+    env?.ALPACA_SECRET_KEY ||
+    env?.APCA_API_SECRET;
+  const explicitBase = String(env?.APCA_API_BASE_URL || '').trim();
+  const baseCandidates = explicitBase
+    ? [explicitBase]
+    : ['https://paper-api.alpaca.markets', 'https://api.alpaca.markets'];
 
-  if (!force && tradingResearchCache.payload && Date.now() - tradingResearchCache.at < cacheWindow) {
-    return tradingResearchCache.payload;
+  if (!key || !secret) {
+    return {
+      account: {
+        cash: null,
+        equity: null,
+        buyingPower: null,
+        openPositions: null,
+        openOrders: null
+      },
+      error: 'missing ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY'
+    };
   }
 
+  const headers = {
+    'APCA-API-KEY-ID': key,
+    'APCA-API-SECRET-KEY': secret
+  };
+
+  const baseErrors = [];
+
+  for (const rawBase of baseCandidates) {
+    const base = String(rawBase || '').replace(/\/+$/, '');
+    if (!base) continue;
+
+    const [accountRes, positionsRes, ordersRes] = await Promise.allSettled([
+      fetchJsonWithTimeout(`${base}/v2/account`, { headers, timeoutMs: 12_000 }),
+      fetchJsonWithTimeout(`${base}/v2/positions`, { headers, timeoutMs: 12_000 }),
+      fetchJsonWithTimeout(`${base}/v2/orders?status=open&limit=200`, { headers, timeoutMs: 12_000 })
+    ]);
+
+    const errors = [];
+    const accountRaw =
+      accountRes.status === 'fulfilled' && accountRes.value && typeof accountRes.value === 'object'
+        ? accountRes.value
+        : null;
+    if (!accountRaw) {
+      const reason =
+        accountRes.status === 'rejected'
+          ? accountRes.reason instanceof Error
+            ? accountRes.reason.message
+            : String(accountRes.reason)
+          : 'invalid payload';
+      errors.push(`account: ${reason}`);
+    }
+
+    const positions =
+      positionsRes.status === 'fulfilled' && Array.isArray(positionsRes.value) ? positionsRes.value : null;
+    if (!positions) {
+      const reason =
+        positionsRes.status === 'rejected'
+          ? positionsRes.reason instanceof Error
+            ? positionsRes.reason.message
+            : String(positionsRes.reason)
+          : 'invalid payload';
+      errors.push(`positions: ${reason}`);
+    }
+
+    const orders =
+      ordersRes.status === 'fulfilled' && Array.isArray(ordersRes.value) ? ordersRes.value : null;
+    if (!orders) {
+      const reason =
+        ordersRes.status === 'rejected'
+          ? ordersRes.reason instanceof Error
+            ? ordersRes.reason.message
+            : String(ordersRes.reason)
+          : 'invalid payload';
+      errors.push(`orders: ${reason}`);
+    }
+
+    if (accountRaw) {
+      return {
+        account: {
+          cash: parseNumberLoose(accountRaw?.cash),
+          equity: parseNumberLoose(accountRaw?.equity),
+          buyingPower: parseNumberLoose(accountRaw?.buying_power),
+          openPositions: positions ? positions.length : null,
+          openOrders: orders ? orders.length : null
+        },
+        error: errors.length ? errors.join('; ') : ''
+      };
+    }
+
+    baseErrors.push(`${base}: ${errors.join('; ') || 'request failed'}`);
+  }
+
+  return {
+    account: {
+      cash: null,
+      equity: null,
+      buyingPower: null,
+      openPositions: null,
+      openOrders: null
+    },
+    error: baseErrors.join(' | ')
+  };
+}
+
+async function generateLocalTradingResearchSnapshot(force) {
+  ensureDir(TRADING_RESEARCH_DATA_DIR, 0o700);
+
+  const staleMs =
+    Number.isFinite(TRADING_RESEARCH_LOCAL_STALE_MS) && TRADING_RESEARCH_LOCAL_STALE_MS > 0
+      ? TRADING_RESEARCH_LOCAL_STALE_MS
+      : 21600000;
+
+  let research = readJsonFileSafe(TRADING_RESEARCH_OUTPUT_FILE);
+  const journalRaw = readJsonFileSafe(TRADING_RESEARCH_JOURNAL_FILE);
+  const journalEntries = Array.isArray(journalRaw) ? journalRaw : [];
+  const ageMs = getFileAgeMs(TRADING_RESEARCH_OUTPUT_FILE);
+
+  const errors = {};
+
+  if (force || !research) {
+    try {
+      await runTradingResearchScript();
+      research = readJsonFileSafe(TRADING_RESEARCH_OUTPUT_FILE);
+    } catch (e) {
+      errors.agent = e instanceof Error ? e.message : String(e);
+    }
+  } else if (ageMs > staleMs && !inFlightTradingResearchRun) {
+    // Keep non-forced reads fast: return stale data now and refresh in background.
+    runTradingResearchScript().catch(() => {});
+  }
+
+  if (!research && !journalEntries.length) {
+    throw new Error('local trading research data unavailable');
+  }
+
+  const topPicks = Array.isArray(research?.top_picks) ? research.top_picks : [];
+  const scannerCandidates = buildScannerCandidatesFromResearch(research);
+  const accountInfo = await fetchAlpacaAccountSnapshot(readEnvMap());
+  if (accountInfo.error) {
+    errors.account = accountInfo.error;
+  }
+
+  const payload = {
+    generatedAt: nowIso(),
+    sourceBaseUrl: 'local:pi5-trading-research',
+    research: research || null,
+    journalEntries,
+    overviewTopPicks: topPicks.slice(0, 5),
+    scannerCandidates,
+    account: accountInfo.account,
+    strategyStatus: {
+      trading_research_agent: inFlightTradingResearchRun ? 'running' : 'enabled',
+      trigger: 'pi5-local cron + on-demand refresh'
+    },
+    openclaw: {
+      pcOnline: null,
+      nextWake: '',
+      updatedAt: research?.generated_at || nowIso()
+    },
+    errors
+  };
+
+  return payload;
+}
+
+async function generatePi2TradingResearchSnapshot() {
   const researchUrl = buildPi2AltUrl('/api/research');
   const journalUrl = buildPi2AltUrl('/api/research_journal.json');
   const statusUrl = buildPi2AltUrl('/api/openclaw/status');
@@ -1519,6 +2133,32 @@ async function generateTradingResearchSnapshot(force) {
     },
     errors
   };
+}
+
+async function generateTradingResearchSnapshot(force) {
+  const cacheWindow =
+    Number.isFinite(TRADING_RESEARCH_CACHE_MS) && TRADING_RESEARCH_CACHE_MS > 0
+      ? TRADING_RESEARCH_CACHE_MS
+      : 60_000;
+
+  if (!force && tradingResearchCache.payload && Date.now() - tradingResearchCache.at < cacheWindow) {
+    return tradingResearchCache.payload;
+  }
+
+  let payload = null;
+
+  if (TRADING_RESEARCH_LOCAL_ONLY) {
+    payload = await generateLocalTradingResearchSnapshot(force);
+  } else {
+    try {
+      payload = await generateLocalTradingResearchSnapshot(force);
+    } catch (localErr) {
+      const fallback = await generatePi2TradingResearchSnapshot();
+      const localMsg = localErr instanceof Error ? localErr.message : String(localErr);
+      fallback.errors = { ...(fallback.errors || {}), local: localMsg };
+      payload = fallback;
+    }
+  }
 
   tradingResearchCache = { at: Date.now(), payload };
   return payload;
@@ -1584,6 +2224,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/games/briefing/refresh') {
       const briefing = await getOrGenerateGameBriefing(true);
       sendJson(res, 200, briefing);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/podcast-videos') {
+      const playlist = await getOrGeneratePodcastVideos(false);
+      sendJson(res, 200, playlist);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/podcast-videos/refresh') {
+      const playlist = await getOrGeneratePodcastVideos(true);
+      sendJson(res, 200, playlist);
       return;
     }
 
