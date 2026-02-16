@@ -319,6 +319,15 @@ const GENERIC_GAME_SOURCES = [
 ];
 
 
+const PI2_ALT_BASE_URL = String(process.env.PI2_ALT_BASE_URL || 'http://192.168.4.12/alt').replace(
+  /\/+$/,
+  ''
+);
+const TRADING_RESEARCH_CACHE_MS = Number.parseInt(
+  process.env.TRADING_RESEARCH_CACHE_MS || '60000',
+  10
+);
+
 const USER_AGENT = 'pi5-dashboard/1.0 (+local LAN)';
 
 function nowIso() {
@@ -887,6 +896,9 @@ function serveAudio(res, name) {
 
 const inFlightByDate = new Map();
 const inFlightGameByKey = new Map();
+const inFlightTradingResearchByMode = new Map();
+
+let tradingResearchCache = { at: 0, payload: null };
 
 async function generateDailyBriefing(force) {
   const date = localDateString();
@@ -1341,6 +1353,197 @@ async function getOrGenerateGameBriefing(force) {
 }
 
 
+function buildPi2AltUrl(pathname) {
+  const suffix = String(pathname || '').startsWith('/') ? String(pathname || '') : `/${pathname || ''}`;
+  return `${PI2_ALT_BASE_URL}${suffix}`;
+}
+
+function parseNumberLoose(raw) {
+  const text = String(raw == null ? '' : raw)
+    .replace(/[$,%]/g, '')
+    .replace(/,/g, '')
+    .trim();
+  if (!text) return null;
+  const n = Number.parseFloat(text);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseMorningScannerCandidates(logText) {
+  const lines = String(logText || '').split(/\r?\n/);
+  const out = [];
+
+  for (const line of lines) {
+    const m = line.match(
+      /^\s*([A-Z][A-Z0-9.\-]{0,9})\s+([0-9]+(?:\.[0-9]+)?)\s+(bull|bear)\s+([0-9]+(?:\.[0-9]+)?)\s+(-?[0-9]+(?:\.[0-9]+)?)\s+([0-9]+(?:\.[0-9]+)?)\s+(-?[0-9]+(?:\.[0-9]+)?)/i
+    );
+    if (!m) continue;
+
+    out.push({
+      ticker: m[1],
+      score: Number.parseFloat(m[2]),
+      dir: m[3].toLowerCase(),
+      close: Number.parseFloat(m[4]),
+      roc3: Number.parseFloat(m[5]),
+      volSurge: Number.parseFloat(m[6]),
+      rs5d: Number.parseFloat(m[7])
+    });
+  }
+
+  return out;
+}
+
+function extractTradeMetric(logText, label) {
+  const escapedLabel = String(label || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const m = String(logText || '').match(new RegExp(`${escapedLabel}:\\s*([^\\n]+)`));
+  return m ? m[1].trim() : '';
+}
+
+function parseAccountSnapshotFromTradeLog(logText) {
+  const cash = parseNumberLoose(extractTradeMetric(logText, 'Cash'));
+  const equity = parseNumberLoose(extractTradeMetric(logText, 'Equity'));
+  const buyingPower = parseNumberLoose(extractTradeMetric(logText, 'Buying power'));
+  const openPositions = parseNumberLoose(extractTradeMetric(logText, 'Open positions'));
+  const openOrders = parseNumberLoose(extractTradeMetric(logText, 'Open orders'));
+
+  return {
+    cash,
+    equity,
+    buyingPower,
+    openPositions,
+    openOrders
+  };
+}
+
+async function fetchJsonWithTimeout(url) {
+  const r = await fetch(url, {
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      'User-Agent': USER_AGENT,
+      Accept: 'application/json, text/plain, */*'
+    }
+  });
+
+  if (!r.ok) {
+    throw new Error(`HTTP ${r.status}`);
+  }
+
+  const text = await r.text();
+  if (!text.trim()) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('invalid json');
+  }
+}
+
+async function generateTradingResearchSnapshot(force) {
+  const cacheWindow =
+    Number.isFinite(TRADING_RESEARCH_CACHE_MS) && TRADING_RESEARCH_CACHE_MS > 0
+      ? TRADING_RESEARCH_CACHE_MS
+      : 60_000;
+
+  if (!force && tradingResearchCache.payload && Date.now() - tradingResearchCache.at < cacheWindow) {
+    return tradingResearchCache.payload;
+  }
+
+  const researchUrl = buildPi2AltUrl('/api/research');
+  const journalUrl = buildPi2AltUrl('/api/research_journal.json');
+  const statusUrl = buildPi2AltUrl('/api/openclaw/status');
+
+  const [researchRes, journalRes, statusRes] = await Promise.allSettled([
+    fetchJsonWithTimeout(researchUrl),
+    fetchJsonWithTimeout(journalUrl),
+    fetchJsonWithTimeout(statusUrl)
+  ]);
+
+  let research = null;
+  let journalEntries = [];
+  let status = null;
+
+  const errors = {};
+
+  if (researchRes.status === 'fulfilled') {
+    if (researchRes.value && typeof researchRes.value === 'object' && !Array.isArray(researchRes.value)) {
+      research = researchRes.value;
+    } else {
+      errors.research = 'invalid payload';
+    }
+  } else {
+    errors.research = researchRes.reason instanceof Error ? researchRes.reason.message : String(researchRes.reason);
+  }
+
+  if (journalRes.status === 'fulfilled') {
+    if (Array.isArray(journalRes.value)) {
+      journalEntries = journalRes.value;
+    } else {
+      errors.journal = 'invalid payload';
+    }
+  } else {
+    errors.journal = journalRes.reason instanceof Error ? journalRes.reason.message : String(journalRes.reason);
+  }
+
+  if (statusRes.status === 'fulfilled') {
+    if (statusRes.value && typeof statusRes.value === 'object' && !Array.isArray(statusRes.value)) {
+      status = statusRes.value;
+    } else {
+      errors.status = 'invalid payload';
+    }
+  } else {
+    errors.status = statusRes.reason instanceof Error ? statusRes.reason.message : String(statusRes.reason);
+  }
+
+  if (!research && !status && !journalEntries.length) {
+    throw new Error('Pi2 research endpoints unavailable');
+  }
+
+  const topPicks = Array.isArray(research?.top_picks) ? research.top_picks : [];
+  const tradeLog = typeof status?.tradeLog === 'string' ? status.tradeLog : '';
+
+  const payload = {
+    generatedAt: nowIso(),
+    sourceBaseUrl: PI2_ALT_BASE_URL,
+    research,
+    journalEntries,
+    overviewTopPicks: topPicks.slice(0, 5),
+    scannerCandidates: parseMorningScannerCandidates(tradeLog),
+    account: parseAccountSnapshotFromTradeLog(tradeLog),
+    strategyStatus:
+      status && status.strategyStatus && typeof status.strategyStatus === 'object'
+        ? status.strategyStatus
+        : {},
+    openclaw: {
+      pcOnline: status?.pcOnline ?? null,
+      nextWake: status?.nextWake ?? '',
+      updatedAt: status?.updatedAt ?? ''
+    },
+    errors
+  };
+
+  tradingResearchCache = { at: Date.now(), payload };
+  return payload;
+}
+
+async function getTradingResearchSnapshot(force) {
+  const key = force ? 'force' : 'cache';
+
+  const existing = inFlightTradingResearchByMode.get(key);
+  if (existing) return existing;
+
+  const p = (async () => {
+    try {
+      return await generateTradingResearchSnapshot(force);
+    } finally {
+      inFlightTradingResearchByMode.delete(key);
+    }
+  })();
+
+  inFlightTradingResearchByMode.set(key, p);
+  return p;
+}
+
+
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -1381,6 +1584,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/games/briefing/refresh') {
       const briefing = await getOrGenerateGameBriefing(true);
       sendJson(res, 200, briefing);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/trading-research') {
+      const snapshot = await getTradingResearchSnapshot(false);
+      sendJson(res, 200, snapshot);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/trading-research/refresh') {
+      const snapshot = await getTradingResearchSnapshot(true);
+      sendJson(res, 200, snapshot);
       return;
     }
 

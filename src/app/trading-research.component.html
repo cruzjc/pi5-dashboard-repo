@@ -1,0 +1,515 @@
+<section class='hero'>
+  <p class='eyebrow'>Pi2 Migration</p>
+
+  <div class='title-row'>
+    <h1>Trading Research</h1>
+    <div class='actions'>
+      <button type='button' (click)='refresh()' [disabled]='loading() || refreshing()'>
+        {{ loading() ? 'Loading...' : 'Refresh' }}
+      </button>
+      <button
+        type='button'
+        class='accent'
+        (click)='refreshFromPi2()'
+        [disabled]='loading() || refreshing()'
+      >
+        {{ refreshing() ? 'Refreshing...' : 'Refresh From Pi2' }}
+      </button>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Ported from <code>/alt</code> on Pi2: the full Research tab plus <strong>Today's Top Picks</strong>
+    from Overview and <strong>Morning Scanner Results</strong> from Trading.
+  </p>
+
+  <div class='meta'>
+    <div>
+      <span class='k'>Snapshot</span>
+      <span class='v'>{{ generatedAtLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Last Scan</span>
+      <span class='v'>{{ scanAtLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>OpenClaw Update</span>
+      <span class='v'>{{ openclawAtLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Pi2 Source</span>
+      <span class='v'><code>{{ snapshot()?.sourceBaseUrl || '—' }}</code></span>
+    </div>
+  </div>
+
+  @if (error()) {
+    <p class='error'>{{ error() }}</p>
+  }
+
+  @if (loadWarnings().length) {
+    <div class='warn'>
+      <p>Some sources failed to load:</p>
+      <ul>
+        @for (w of loadWarnings(); track w) {
+          <li>{{ w }}</li>
+        }
+      </ul>
+    </div>
+  }
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/section/trading'>Trading</a>
+    <a routerLink='/config'>Config</a>
+  </div>
+</section>
+
+<section class='stats-grid'>
+  <article class='stat-card'>
+    <p class='stat-label'>Opportunities (4+)</p>
+    <p class='stat-value success'>{{ research()?.summary?.opportunities_found ?? '—' }}</p>
+  </article>
+  <article class='stat-card'>
+    <p class='stat-label'>Earnings This Week</p>
+    <p class='stat-value warning'>{{ research()?.summary?.earnings_upcoming ?? '—' }}</p>
+  </article>
+  <article class='stat-card'>
+    <p class='stat-label'>Total Scanned</p>
+    <p class='stat-value'>{{ research()?.summary?.total_scanned ?? '—' }}</p>
+  </article>
+  <article class='stat-card'>
+    <p class='stat-label'>Filter</p>
+    <p class='stat-value small'>
+      @if (research()?.config) {
+        ≤${{ research()?.config?.max_stock_price }} | prem ≤${{ research()?.config?.max_option_premium }}
+      } @else {
+        —
+      }
+    </p>
+  </article>
+  <article class='stat-card'>
+    <p class='stat-label'>PC Status</p>
+    <p class='stat-value' [class.success]='snapshot()?.openclaw?.pcOnline' [class.warning]='!snapshot()?.openclaw?.pcOnline'>
+      {{ snapshot()?.openclaw?.pcOnline === true ? 'Online' : snapshot()?.openclaw?.pcOnline === false ? 'Sleeping' : 'Unknown' }}
+    </p>
+  </article>
+  <article class='stat-card'>
+    <p class='stat-label'>Next Wake</p>
+    <p class='stat-value small'>{{ snapshot()?.openclaw?.nextWake || '—' }}</p>
+  </article>
+</section>
+
+<section class='grid'>
+  <article class='card'>
+    <h2>Today's Top Picks</h2>
+    <p class='muted'>From Overview tab on Pi2.</p>
+
+    <div class='table-wrapper'>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Score</th>
+            <th>Direction</th>
+            <th>Key Reasons</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (overviewPicks().length) {
+            @for (p of overviewPicks(); track p.ticker) {
+              <tr>
+                <td><strong>{{ p.ticker || '—' }}</strong></td>
+                <td>{{ money(p.price) }}</td>
+                <td><span [class]="'badge ' + scoreClass(p.score)">{{ p.score != null ? p.score.toFixed(1) : '—' }}</span></td>
+                <td>
+                  <span [class]="'badge ' + directionClass(p.trade_idea?.direction)">
+                    {{ p.trade_idea?.direction || '—' }}
+                  </span>
+                </td>
+                <td>{{ (p.reasons || []).slice(0, 2).join(', ') || '—' }}</td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td colspan='5' class='empty'>No top picks available.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class='card'>
+    <h2>Morning Scanner Results</h2>
+    <p class='muted'>From Trading tab on Pi2 (parsed from OpenClaw trade log).</p>
+
+    <div class='table-wrapper'>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Score</th>
+            <th>Direction</th>
+            <th>Close</th>
+            <th>ROC 3%</th>
+            <th>Vol Surge</th>
+            <th>RS 5d</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (scannerRows().length) {
+            @for (row of scannerRows(); track row.ticker) {
+              <tr>
+                <td><strong>{{ row.ticker || '—' }}</strong></td>
+                <td>{{ row.score != null ? row.score.toFixed(1) : '—' }}</td>
+                <td><span [class]="'badge ' + directionClass(row.dir)">{{ row.dir || '—' }}</span></td>
+                <td>{{ money(row.close) }}</td>
+                <td [class.positive]='(row.roc3 ?? 0) >= 0' [class.negative]='(row.roc3 ?? 0) < 0'>
+                  {{ percent(row.roc3, 2) }}
+                </td>
+                <td>{{ row.volSurge != null ? row.volSurge.toFixed(2) + 'x' : '—' }}</td>
+                <td>{{ row.rs5d != null ? row.rs5d.toFixed(4) : '—' }}</td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td colspan='7' class='empty'>No scanner rows found in current trade log.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class='card wide'>
+    <h2>Account Snapshot & Strategy States</h2>
+    <div class='split'>
+      <div class='table-wrapper'>
+        <table>
+          <thead>
+            <tr>
+              <th>Account Metric</th>
+              <th>Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Cash</td>
+              <td>{{ money(snapshot()?.account?.cash) }}</td>
+            </tr>
+            <tr>
+              <td>Equity</td>
+              <td>{{ money(snapshot()?.account?.equity) }}</td>
+            </tr>
+            <tr>
+              <td>Buying Power</td>
+              <td>{{ money(snapshot()?.account?.buyingPower) }}</td>
+            </tr>
+            <tr>
+              <td>Open Positions</td>
+              <td>{{ snapshot()?.account?.openPositions ?? '—' }}</td>
+            </tr>
+            <tr>
+              <td>Open Orders</td>
+              <td>{{ snapshot()?.account?.openOrders ?? '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class='table-wrapper'>
+        <table>
+          <thead>
+            <tr>
+              <th>Strategy</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (strategyRows().length) {
+              @for (s of strategyRows(); track s.name) {
+                <tr>
+                  <td><code>{{ s.name }}</code></td>
+                  <td><span [class]="'badge ' + strategyClass(s.status)">{{ s.status }}</span></td>
+                </tr>
+              }
+            } @else {
+              <tr>
+                <td colspan='2' class='empty'>No strategy status data.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </article>
+
+  <article class='card wide'>
+    <h2>Score Guide</h2>
+    <div class='score-guide'>
+      <div class='score-item excellent'><strong>6+ Excellent</strong><br />Multiple strong catalysts. High conviction.</div>
+      <div class='score-item good'><strong>4-5.9 Good</strong><br />Solid setup with clear catalyst. Worth considering.</div>
+      <div class='score-item watch'><strong>2-3.9 Watchlist</strong><br />Some signals. Monitor for better entry.</div>
+      <div class='score-item weak'><strong>0-1.9 Weak</strong><br />Limited catalyst. Wait for better setup.</div>
+    </div>
+  </article>
+
+  <article class='card wide'>
+    <h2>Earnings Calendar (Next 7 Days)</h2>
+    @if (calendarDays().length) {
+      <div class='calendar-grid'>
+        @for (day of calendarDays(); track day.date) {
+          <div class='calendar-day' [class.today]='day.is_today'>
+            <div class='calendar-day-name'>{{ day.day || day.date || '—' }}</div>
+            @if (day.earnings?.length) {
+              <div class='calendar-tickers'>
+                @for (e of day.earnings || []; track e.ticker) {
+                  <span class='calendar-ticker'>{{ e.ticker }}</span>
+                }
+              </div>
+            } @else {
+              <span class='muted small'>—</span>
+            }
+          </div>
+        }
+      </div>
+    } @else {
+      <p class='muted'>No calendar data available.</p>
+    }
+  </article>
+
+  <article class='card wide'>
+    <h2>Top Picks Detailed</h2>
+    @if (topPicksDetailed().length) {
+      <div class='pick-list'>
+        @for (p of topPicksDetailed(); track p.ticker) {
+          <article class='pick'>
+            <header>
+              <div class='left'>
+                <strong>{{ p.ticker || '—' }}</strong>
+                <span>{{ money(p.price) }}</span>
+                <span [class]="'badge ' + directionClass(p.trade_idea?.direction)">{{ p.trade_idea?.direction || '—' }}</span>
+                <span [class]="'badge ' + scoreClass(p.score)">{{ p.score != null ? p.score.toFixed(1) + ' pts' : '—' }}</span>
+              </div>
+              <div class='right'>
+                @if (p.options?.iv_avg != null) {
+                  <span>IV {{ p.options?.iv_avg }}%</span>
+                }
+                @if (p.options?.expected_move_pct != null) {
+                  <span>Exp ±{{ p.options?.expected_move_pct }}%</span>
+                }
+              </div>
+            </header>
+
+            @if ((p.reasons || []).length) {
+              <div class='chips'>
+                @for (r of p.reasons || []; track r) {
+                  <span class='chip'>{{ r }}</span>
+                }
+              </div>
+            }
+
+            @if (p.ai_sentiment?.summary) {
+              <p class='ai'>{{ p.ai_sentiment?.summary }}</p>
+            }
+
+            <div class='idea-grid'>
+              <div class='idea'>
+                <h3>Stock Levels</h3>
+                <div class='row'><span>Entry</span><strong>{{ p.trade_idea?.entry_exit?.stock_entry ?? '—' }}</strong></div>
+                <div class='row'><span>Target</span><strong>{{ p.trade_idea?.entry_exit?.stock_target ?? '—' }}</strong></div>
+                <div class='row'><span>Stop</span><strong>{{ p.trade_idea?.entry_exit?.stock_stop ?? '—' }}</strong></div>
+              </div>
+              <div class='idea'>
+                <h3>Option Suggestion</h3>
+                @if (p.trade_idea?.suggested_option) {
+                  <div class='row'><span>Strike</span><strong>{{ p.trade_idea?.suggested_option?.strike ?? '—' }}</strong></div>
+                  <div class='row'><span>Premium</span><strong>{{ p.trade_idea?.suggested_option?.premium ?? '—' }}</strong></div>
+                  <div class='row'><span>Break-even</span><strong>{{ p.trade_idea?.suggested_option?.break_even ?? '—' }}</strong></div>
+                } @else {
+                  <p class='muted small'>No affordable option found.</p>
+                }
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <p class='muted'>No detailed picks available.</p>
+    }
+  </article>
+
+  <article class='card wide'>
+    <h2>Research Journal</h2>
+    @if (journalEntries().length) {
+      <div class='journal-list'>
+        @for (entry of journalEntries(); track $index) {
+          <details class='journal-item'>
+            <summary>
+              <div class='title'>{{ entry.title || 'Research Entry' }}</div>
+              <div class='meta-line'>
+                {{ entry.created_at ? entry.created_at : '—' }}
+                @if (entry.ai_journal?.tone) {
+                  <span [class]="'badge ' + toneClass(entry.ai_journal?.tone)">{{ entry.ai_journal?.tone }}</span>
+                }
+              </div>
+              @if ((entry.top_picks || []).length) {
+                <div class='journal-tickers'>
+                  @for (p of (entry.top_picks || []).slice(0, 5); track p.ticker) {
+                    <span class='calendar-ticker'>{{ p.ticker }}</span>
+                  }
+                </div>
+              }
+            </summary>
+            <div class='journal-body'>
+              @if (entry.summary) {
+                <p>{{ entry.summary }}</p>
+              }
+              @if (entry.ai_journal?.headline) {
+                <h4>AI Headline</h4>
+                <p>{{ entry.ai_journal?.headline }}</p>
+              }
+              @if (entry.ai_journal?.notes) {
+                <h4>Notes</h4>
+                <p>{{ entry.ai_journal?.notes }}</p>
+              }
+              @if ((entry.ai_journal?.themes || []).length) {
+                <h4>Themes</h4>
+                <div class='chips'>
+                  @for (t of entry.ai_journal?.themes || []; track t) {
+                    <span class='chip'>{{ t }}</span>
+                  }
+                </div>
+              }
+              @if ((entry.ai_journal?.watchlist || []).length) {
+                <h4>Watchlist</h4>
+                <ul class='watchlist'>
+                  @for (w of entry.ai_journal?.watchlist || []; track $index) {
+                    <li>
+                      <strong>{{ w.ticker }}</strong>
+                      <span [class]="'badge ' + directionClass(w.direction)">{{ w.direction || '—' }}</span>
+                      <span>{{ w.why }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          </details>
+        }
+      </div>
+    } @else {
+      <p class='muted'>No journal entries available.</p>
+    }
+  </article>
+
+  <article class='card'>
+    <h2>Earnings Plays</h2>
+    <div class='table-wrapper'>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>Earnings</th>
+            <th>IV</th>
+            <th>Expected Move</th>
+            <th>Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (earningsPlays().length) {
+            @for (p of earningsPlays(); track p.ticker) {
+              <tr>
+                <td><strong>{{ p.ticker || '—' }}</strong></td>
+                <td>{{ money(p.price) }}</td>
+                <td>{{ p.earnings_date || '—' }}</td>
+                <td>{{ p.options?.iv_avg != null ? p.options?.iv_avg + '%' : '—' }}</td>
+                <td>{{ p.options?.expected_move_pct != null ? '±' + p.options?.expected_move_pct + '%' : '—' }}</td>
+                <td><span [class]="'badge ' + directionClass(p.trade_idea?.direction)">{{ p.trade_idea?.direction || '—' }}</span></td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td colspan='6' class='empty'>No earnings plays.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class='card'>
+    <h2>Momentum Plays</h2>
+    <div class='table-wrapper'>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>5D Move</th>
+            <th>Vol Surge</th>
+            <th>RSI</th>
+            <th>Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (momentumPlays().length) {
+            @for (p of momentumPlays(); track p.ticker) {
+              <tr>
+                <td><strong>{{ p.ticker || '—' }}</strong></td>
+                <td>{{ money(p.price) }}</td>
+                <td [class.positive]='(p.momentum_5d ?? 0) >= 0' [class.negative]='(p.momentum_5d ?? 0) < 0'>
+                  {{ percent(p.momentum_5d, 1) }}
+                </td>
+                <td>{{ p.vol_surge != null ? p.vol_surge.toFixed(1) + 'x' : '—' }}</td>
+                <td>{{ p.rsi != null ? p.rsi.toFixed(0) : '—' }}</td>
+                <td><span [class]="'badge ' + directionClass(p.trade_idea?.direction)">{{ p.trade_idea?.direction || '—' }}</span></td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td colspan='6' class='empty'>No momentum plays.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class='card wide'>
+    <h2>Oversold Plays</h2>
+    <div class='table-wrapper'>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Price</th>
+            <th>RSI</th>
+            <th>Support</th>
+            <th>Direction</th>
+            <th>AI Sentiment</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (oversoldPlays().length) {
+            @for (p of oversoldPlays(); track p.ticker) {
+              <tr>
+                <td><strong>{{ p.ticker || '—' }}</strong></td>
+                <td>{{ money(p.price) }}</td>
+                <td>{{ p.rsi != null ? p.rsi.toFixed(0) : '—' }}</td>
+                <td>{{ p.support != null ? '$' + p.support.toFixed(2) : '—' }}</td>
+                <td><span [class]="'badge ' + directionClass(p.trade_idea?.direction)">{{ p.trade_idea?.direction || '—' }}</span></td>
+                <td>{{ p.ai_sentiment?.summary || '—' }}</td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td colspan='6' class='empty'>No oversold plays.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+</section>

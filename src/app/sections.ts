@@ -49,6 +49,18 @@ export const SECTIONS: LegacySection[] = [
     sources: ['http://192.168.4.12/api/trading/status', 'http://portal.pi2/ui/trading.html']
   },
   {
+    slug: 'trading-research',
+    title: 'Trading Research',
+    summary: 'Pi2 alt portal research tab + overview top picks + morning scanner results.',
+    sources: [
+      '/api/trading-research',
+      '/api/trading-research/refresh',
+      'http://192.168.4.12/alt/api/research',
+      'http://192.168.4.12/alt/api/openclaw/status',
+      'http://192.168.4.12/alt/api/research_journal.json'
+    ]
+  },
+  {
     slug: 'portal-dashboard-pages',
     title: 'Portal Dashboard Legacy Pages',
     summary: 'Legacy dashboard and /ui pages under portal.pi2 host routing.',

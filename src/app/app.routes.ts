@@ -8,6 +8,7 @@ import { GameBriefingComponent } from './game-briefing.component';
 import { SectionComponent } from './section.component';
 import { TodoComponent } from './todo.component';
 import { TradingComponent } from './trading.component';
+import { TradingResearchComponent } from './trading-research.component';
 
 export const routes: Routes = [
   {
@@ -44,6 +45,11 @@ export const routes: Routes = [
     path: 'section/trading',
     component: TradingComponent,
     title: 'Trading'
+  },
+  {
+    path: 'section/trading-research',
+    component: TradingResearchComponent,
+    title: 'Trading Research'
   },
   {
     path: 'section/:slug',
