@@ -10,6 +10,9 @@
       <button type='button' class='accent' (click)='regenerate()' [disabled]='loading() || refreshing()'>
         {{ refreshing() ? 'Building...' : 'Rebuild Playlist' }}
       </button>
+      <button type='button' (click)='toggleShuffle()'>
+        Shuffle: {{ shuffleEnabled() ? 'On' : 'Off' }}
+      </button>
     </div>
   </div>
 
@@ -48,13 +51,41 @@
 </section>
 
 <section class='card'>
+  <h2>Video Loader</h2>
+
+  @if (embedUrl()) {
+    <div class='player-wrap'>
+      <iframe
+        [src]='embedUrl()'
+        title='Podcast Video Player'
+        allow='autoplay; encrypted-media; picture-in-picture; web-share'
+        allowfullscreen
+      ></iframe>
+    </div>
+
+    <p class='now'>Now Playing: <strong>{{ nowPlayingLabel() }}</strong></p>
+
+    <div class='player-actions'>
+      <button type='button' (click)='prev()'>Prev</button>
+      <button type='button' (click)='next()'>Next</button>
+      @if (currentItem()?.link) {
+        <a [href]='currentItem()?.link || "#"' target='_blank' rel='noreferrer'>Open in YouTube</a>
+      }
+    </div>
+  } @else {
+    <p class='muted'>No playable videos in the current playlist.</p>
+  }
+</section>
+
+<section class='card'>
   <h2>Playlist</h2>
 
-  @if (items().length) {
+  @if (queueItems().length) {
     <ol class='playlist'>
-      @for (item of items(); track item.videoId || item.link || $index) {
-        <li>
+      @for (item of queueItems(); track item.videoId || item.link || $index) {
+        <li [class.active]='isPlaying(item)'>
           <a [href]='item.link || "#"' target='_blank' rel='noreferrer'>{{ item.title || item.link || 'Untitled' }}</a>
+          <button type='button' class='play' (click)='playItem(item)' [disabled]='!item.videoId'>Play</button>
           <span class='src'>{{ item.sourceName || 'Source' }}</span>
           <span class='tag'>{{ item.mode === 'shorts' ? 'Short' : 'Video' }}</span>
           <span class='tag'>{{ reasonLabel(item) }}</span>
