@@ -99,6 +99,13 @@ const KNOWN_KEYS: KeyDef[] = [
     description: 'Optional: comma-separated or JSON list of feeds (stored as a string).',
     placeholder: 'https://example.com/rss, https://another.com/rss',
     multiline: true
+  },
+  {
+    key: 'GAME_BRIEFING_GAMES',
+    label: 'Game Briefing Games',
+    description: 'Optional: comma/newline-separated list of games for the Game Briefing page.',
+    placeholder: 'Arknights\nGenshin Impact\nHonkai: Star Rail',
+    multiline: true
   }
 ];
 

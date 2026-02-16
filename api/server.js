@@ -13,6 +13,7 @@ const ENV_PATH =
 const DATA_DIR =
   process.env.PI5_DASHBOARD_DATA_DIR || path.join(os.homedir(), '.pi5-dashboard-data');
 const BRIEFINGS_DIR = path.join(DATA_DIR, 'briefings');
+const GAME_BRIEFINGS_DIR = path.join(DATA_DIR, 'game-briefings');
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
 
 const CATEGORY_PRIORITIES = [
@@ -281,6 +282,43 @@ const DEFAULT_PERSONAS = [
   }
 ];
 
+const DEFAULT_GAMES = ['Arknights'];
+const MAX_GAMES = 12;
+const GAME_SOURCE_ITEM_LIMIT = 8;
+const GENERIC_SOURCE_ITEM_LIMIT = 25;
+const MAX_ARTICLES_PER_GAME = 14;
+
+const GAME_REDDIT_SUBREDDITS = {
+  Arknights: 'arknights',
+  'Genshin Impact': 'Genshin_Impact',
+  'Honkai: Star Rail': 'HonkaiStarRail',
+  'Honkai Star Rail': 'HonkaiStarRail',
+  'Zenless Zone Zero': 'ZenlessZoneZero',
+  'Wuthering Waves': 'WutheringWaves',
+  'Blue Archive': 'BlueArchive',
+  'Fate/Grand Order': 'grandorder',
+  'Azur Lane': 'AzureLane',
+  'Epic Seven': 'EpicSeven',
+  'Goddess of Victory: Nikke': 'NikkeMobile',
+  NIKKE: 'NikkeMobile'
+};
+
+const GENERIC_GAME_SOURCES = [
+  {
+    id: 'GG1',
+    name: 'r/gachagaming',
+    url: 'https://www.reddit.com/r/gachagaming/.rss',
+    enabled: true
+  },
+  {
+    id: 'GG2',
+    name: 'Gematsu',
+    url: 'https://www.gematsu.com/feed',
+    enabled: true
+  }
+];
+
+
 const USER_AGENT = 'pi5-dashboard/1.0 (+local LAN)';
 
 function nowIso() {
@@ -416,19 +454,54 @@ function jsonError(res, code, msg) {
   sendJson(res, code, { ok: false, error: msg });
 }
 
+function decodeHtmlEntities(s) {
+  let t = String(s || '');
+
+  for (let i = 0; i < 2; i++) {
+    const prev = t;
+
+    t = t
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&#(\d+);/g, (_m, n) => {
+        const code = Number.parseInt(n, 10);
+        if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return '';
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return '';
+        }
+      })
+      .replace(/&#x([0-9a-fA-F]+);/g, (_m, n) => {
+        const code = Number.parseInt(n, 16);
+        if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return '';
+        try {
+          return String.fromCodePoint(code);
+        } catch {
+          return '';
+        }
+      });
+
+    if (t === prev) break;
+  }
+
+  return t;
+}
+
 function stripHtml(s) {
-  return String(s || '')
+  let t = decodeHtmlEntities(s);
+
+  t = t
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/<[^>]*>/g, ' ');
+
+  t = decodeHtmlEntities(t);
+  return t.replace(/\s+/g, ' ').trim();
 }
 
 function decodeCdata(s) {
@@ -543,6 +616,42 @@ async function mapLimit(items, limit, fn) {
   return Promise.all(results);
 }
 
+function parseStringList(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return [];
+
+  if (t.startsWith('[')) {
+    try {
+      const arr = JSON.parse(t);
+      if (Array.isArray(arr)) {
+        return arr
+          .map((v) => String(v == null ? '' : v).trim())
+          .filter(Boolean);
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  return t
+    .split(/[\r\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+function stableListKey(list) {
+  const items = list
+    .map((s) => String(s || '').trim().toLowerCase())
+    .filter(Boolean)
+    .sort();
+
+  const out = [];
+  for (const s of items) {
+    if (!out.length || out[out.length - 1] !== s) out.push(s);
+  }
+  return out.join('|');
+}
+
+
 function briefingPath(date) {
   return path.join(BRIEFINGS_DIR, `${date}.json`);
 }
@@ -560,6 +669,29 @@ function readBriefing(date) {
 function writeBriefingAtomic(date, obj) {
   ensureDir(BRIEFINGS_DIR, 0o700);
   const file = briefingPath(date);
+  const tmp = `${file}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, file);
+  fs.chmodSync(file, 0o600);
+}
+
+function gameBriefingPath(date) {
+  return path.join(GAME_BRIEFINGS_DIR, `${date}.json`);
+}
+
+function readGameBriefing(date) {
+  const file = gameBriefingPath(date);
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeGameBriefingAtomic(date, obj) {
+  ensureDir(GAME_BRIEFINGS_DIR, 0o700);
+  const file = gameBriefingPath(date);
   const tmp = `${file}.tmp.${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
   fs.renameSync(tmp, file);
@@ -652,7 +784,7 @@ function parseBriefingSections(raw) {
   return { bulletPoints, narrativeScript };
 }
 
-async function generateInworldAudio(inworldApiKey, inworldSecret, voiceId, text) {
+async function generateInworldAudio(inworldApiKey, inworldSecret, voiceId, text, filenamePrefix = 'news-summary') {
   const url = 'https://api.inworld.ai/tts/v1/voice';
   const credentials = Buffer.from(`${inworldApiKey}:${inworldSecret}`).toString('base64');
 
@@ -710,7 +842,13 @@ async function generateInworldAudio(inworldApiKey, inworldSecret, voiceId, text)
   const combined = Buffer.concat(audioBuffers);
   ensureDir(AUDIO_DIR, 0o700);
 
-  const filename = `news-summary-${Date.now()}-${Math.random().toString(16).slice(2, 8)}.mp3`;
+  const base = String(filenamePrefix || 'audio')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40) || 'audio';
+
+  const filename = `${base}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}.mp3`;
   const file = path.join(AUDIO_DIR, filename);
   fs.writeFileSync(file, combined, { mode: 0o600 });
   fs.chmodSync(file, 0o600);
@@ -748,6 +886,7 @@ function serveAudio(res, name) {
 }
 
 const inFlightByDate = new Map();
+const inFlightGameByKey = new Map();
 
 async function generateDailyBriefing(force) {
   const date = localDateString();
@@ -889,6 +1028,319 @@ async function getOrGenerateBriefing(force) {
   return p;
 }
 
+
+function normalizeGameKey(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function canonicalGameName(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  const norm = normalizeGameKey(t);
+
+  for (const k of Object.keys(GAME_REDDIT_SUBREDDITS)) {
+    if (normalizeGameKey(k) === norm) return k;
+  }
+
+  return t;
+}
+
+function readConfiguredGames(env) {
+  const raw = env.GAME_BRIEFING_GAMES;
+  const list = parseStringList(raw);
+  const desired = list.length ? list : DEFAULT_GAMES;
+
+  const out = [];
+  const seen = new Set();
+
+  for (const name of desired) {
+    const canon = canonicalGameName(name);
+    const norm = normalizeGameKey(canon);
+    if (!norm) continue;
+    if (seen.has(norm)) continue;
+    seen.add(norm);
+    out.push(canon);
+    if (out.length >= MAX_GAMES) break;
+  }
+
+  return out.length ? out : DEFAULT_GAMES.slice(0, 1);
+}
+
+function subredditForGame(game) {
+  if (GAME_REDDIT_SUBREDDITS[game]) return GAME_REDDIT_SUBREDDITS[game];
+  const norm = normalizeGameKey(game);
+
+  for (const [k, v] of Object.entries(GAME_REDDIT_SUBREDDITS)) {
+    if (normalizeGameKey(k) === norm) return v;
+  }
+
+  return null;
+}
+
+function normalizeMatchText(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchGameForGenericItem(games, title, snippet) {
+  const hay = normalizeMatchText(`${title || ''} ${snippet || ''}`);
+  if (!hay) return null;
+
+  for (const game of games) {
+    const needle = normalizeMatchText(game);
+    if (!needle) continue;
+    if (hay.includes(needle)) return game;
+  }
+
+  return null;
+}
+
+function sortByPubDateDesc(list) {
+  list.sort((a, b) => {
+    const ta = Date.parse(String(a.pubDate || ''));
+    const tb = Date.parse(String(b.pubDate || ''));
+    const pa = Number.isNaN(ta) ? 0 : ta;
+    const pb = Number.isNaN(tb) ? 0 : tb;
+    return pb - pa;
+  });
+  return list;
+}
+
+async function generateGameBriefing(force) {
+  const date = localDateString();
+
+  const env = readEnvMap();
+  const games = readConfiguredGames(env);
+  const gamesKey = stableListKey(games);
+
+  if (!force) {
+    const existing = readGameBriefing(date);
+    if (existing && existing.gamesKey === gamesKey) return existing;
+  }
+
+  const sources = [];
+  let idx = 0;
+
+  for (const game of games) {
+    const sub = subredditForGame(game);
+    if (!sub) continue;
+    idx += 1;
+    sources.push({
+      id: `G${idx}`,
+      name: `${game} (r/${sub})`,
+      url: `https://www.reddit.com/r/${sub}/.rss`,
+      game,
+      enabled: true
+    });
+  }
+
+  for (const src of GENERIC_GAME_SOURCES) {
+    sources.push({ ...src, game: null });
+  }
+
+  const enabledSources = sources.filter((s) => s.enabled);
+
+  const results = await mapLimit(enabledSources, 8, async (source) => {
+    const items = await fetchAndParseFeed(source.url);
+    return { source, items };
+  });
+
+  const articles = [];
+
+  const perGameCount = new Map();
+  const generalLimit = 30;
+  let generalCount = 0;
+
+  for (const { source, items } of results) {
+    const limit = source.game ? GAME_SOURCE_ITEM_LIMIT : GENERIC_SOURCE_ITEM_LIMIT;
+
+    for (const item of items.slice(0, limit)) {
+      const title = item.title || '';
+      const link = item.link || '';
+      const snippet = item.contentSnippet || '';
+      const pubDate = item.pubDate || '';
+      const sourceName = source.name || '';
+
+      let game = source.game || null;
+
+      if (!game) {
+        const matched = matchGameForGenericItem(games, title, snippet);
+        game = matched || 'General';
+
+        if (!matched) {
+          if (generalCount >= generalLimit) continue;
+          generalCount += 1;
+        }
+      }
+
+      const k = game;
+      const count = perGameCount.get(k) || 0;
+      if (count >= MAX_ARTICLES_PER_GAME) continue;
+      perGameCount.set(k, count + 1);
+
+      articles.push({
+        game,
+        title,
+        link,
+        snippet,
+        sourceName,
+        pubDate
+      });
+    }
+  }
+
+  const byGame = new Map();
+  for (const a of articles) {
+    const k = a.game || 'General';
+    const list = byGame.get(k);
+    if (list) list.push(a);
+    else byGame.set(k, [a]);
+  }
+
+  for (const [k, list] of byGame.entries()) {
+    sortByPubDateDesc(list);
+    byGame.set(k, list.slice(0, MAX_ARTICLES_PER_GAME));
+  }
+
+  const orderedGames = [...games, 'General'].filter((g, i, arr) => arr.indexOf(g) === i);
+  const flattened = [];
+
+  for (const g of orderedGames) {
+    const list = byGame.get(g);
+    if (list && list.length) flattened.push(...list);
+  }
+
+  const otherKeys = Array.from(byGame.keys()).filter((k) => !orderedGames.includes(k));
+  otherKeys.sort((a, b) => String(a).localeCompare(String(b)));
+
+  for (const k of otherKeys) {
+    const list = byGame.get(k);
+    if (list && list.length) flattened.push(...list);
+  }
+
+  const persona = chooseRandom(DEFAULT_PERSONAS) || DEFAULT_PERSONAS[0];
+
+  let summaryText = 'No summary generated.';
+  let narrativeScript = '';
+
+  const geminiApiKey = env.GEMINI_API_KEY;
+  if (geminiApiKey && flattened.length >= 3) {
+    try {
+      const personalityInstruction = persona?.personality
+        ? `PERSONALITY: ${persona.personality}\n\nPresent the briefing in this character\'s style and voice.\n\n`
+        : '';
+
+      const itemLines = [];
+      const maxPromptItemsPerGame = 10;
+
+      for (const game of orderedGames) {
+        const list = byGame.get(game) || [];
+        for (const a of list.slice(0, maxPromptItemsPerGame)) {
+          const snip = String(a.snippet || '').replace(/\s+/g, ' ').trim();
+          const shortSnip = snip.length > 220 ? snip.slice(0, 217) + '...' : snip;
+          itemLines.push(`[${game}] ${a.title}${shortSnip ? ` — ${shortSnip}` : ''}`);
+        }
+      }
+
+      for (const k of otherKeys) {
+        const list = byGame.get(k) || [];
+        for (const a of list.slice(0, maxPromptItemsPerGame)) {
+          const snip = String(a.snippet || '').replace(/\s+/g, ' ').trim();
+          const shortSnip = snip.length > 220 ? snip.slice(0, 217) + '...' : snip;
+          itemLines.push(`[${k}] ${a.title}${shortSnip ? ` — ${shortSnip}` : ''}`);
+        }
+      }
+
+      const prompt = `${personalityInstruction}You are a gaming news researcher and host. Create a dashboard-friendly briefing for these games: ${games.join(
+        ', '
+      )}.\n\nIMPORTANT:\n- Use ONLY the provided headlines/snippets. Do not invent dates, banner end times, birthdays, event names, or rewards.\n- If an end date/birthday is not explicitly stated, say it is not specified in the sources.\n- Keep BULLETS concise and practical.\n- SCRIPT should be about 1-2 minutes when read aloud (about 200-400 words).\n- Do not use markdown.\n\nReturn exactly this format:\n\nBULLETS:\n- Game: key updates (include dates only if explicitly stated)\nSCRIPT:\nA narrative script in the persona's voice.\n\nItems:\n${itemLines.slice(0, 120).join('\n')}`;
+
+      const modelText = await callGemini(geminiApiKey, prompt);
+      const content = parseBriefingSections(modelText) || parseBriefingJson(modelText);
+
+      if (content && typeof content.bulletPoints === 'string' && content.bulletPoints.trim()) {
+        summaryText = content.bulletPoints.trim();
+      } else {
+        summaryText = cleanModelText(modelText) || 'Summary generated.';
+      }
+
+      if (content && typeof content.narrativeScript === 'string') {
+        narrativeScript = content.narrativeScript.trim();
+      }
+    } catch {
+      summaryText = 'Error generating summary.';
+    }
+  }
+
+  const audioPlaylist = [];
+
+  const inworldApiKey = env.INWORLD_API_KEY;
+  const inworldSecret = env.INWORLD_SECRET;
+  if (inworldApiKey && inworldSecret && narrativeScript && narrativeScript.length > 50) {
+    try {
+      const audio = await generateInworldAudio(
+        inworldApiKey,
+        inworldSecret,
+        persona?.voiceId || 'Ashley',
+        narrativeScript,
+        'game-briefing'
+      );
+      audioPlaylist.push({
+        title: 'Game Briefing',
+        url: audio.url,
+        type: 'summary',
+        voice: audio.voiceId
+      });
+    } catch {
+      // Ignore audio failures.
+    }
+  }
+
+  const briefing = {
+    date,
+    generatedAt: nowIso(),
+    games,
+    gamesKey,
+    persona: { name: persona?.name || 'Unknown', voiceId: persona?.voiceId || 'Ashley' },
+    summaryText,
+    narrativeScript,
+    audioPlaylist,
+    articles: flattened
+  };
+
+  writeGameBriefingAtomic(date, briefing);
+  return briefing;
+}
+
+async function getOrGenerateGameBriefing(force) {
+  const date = localDateString();
+  const env = readEnvMap();
+  const games = readConfiguredGames(env);
+  const gamesKey = stableListKey(games);
+  const key = `${date}:${gamesKey}:${force ? 'force' : 'cache'}`;
+
+  const existing = inFlightGameByKey.get(key);
+  if (existing) return existing;
+
+  const p = (async () => {
+    try {
+      return await generateGameBriefing(force);
+    } finally {
+      inFlightGameByKey.delete(key);
+    }
+  })();
+
+  inFlightGameByKey.set(key, p);
+  return p;
+}
+
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
@@ -916,6 +1368,18 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/news/refresh') {
       const briefing = await getOrGenerateBriefing(true);
+      sendJson(res, 200, briefing);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/games/briefing') {
+      const briefing = await getOrGenerateGameBriefing(false);
+      sendJson(res, 200, briefing);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/games/briefing/refresh') {
+      const briefing = await getOrGenerateGameBriefing(true);
       sendJson(res, 200, briefing);
       return;
     }

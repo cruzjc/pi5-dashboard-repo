@@ -1,0 +1,133 @@
+<section class='hero'>
+  <p class='eyebrow'>AI Briefing</p>
+
+  <div class='title-row'>
+    <h1>Game Briefing</h1>
+    <div class='actions'>
+      <button type='button' (click)='refresh()' [disabled]='loading() || regenerating()'>
+        {{ loading() ? 'Loading...' : 'Refresh' }}
+      </button>
+      <button
+        type='button'
+        class='accent'
+        (click)='regenerate()'
+        [disabled]='loading() || regenerating()'
+      >
+        {{ regenerating() ? 'Regenerating...' : 'Regenerate' }}
+      </button>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Pulls game updates from RSS sources, summarizes in a randomly picked persona, then optionally narrates via Inworld TTS.
+    Configure the game list via <code>GAME_BRIEFING_GAMES</code> on the Config page.
+  </p>
+
+  <div class='meta'>
+    <div>
+      <span class='k'>Persona</span>
+      <span class='v'>{{ personaLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Generated</span>
+      <span class='v'>{{ generatedAtLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Games</span>
+      <span class='v'>{{ gamesLabel() }}</span>
+    </div>
+    @if (briefing()?.date) {
+      <div>
+        <span class='k'>Date</span>
+        <span class='v'><code>{{ briefing()?.date }}</code></span>
+      </div>
+    }
+  </div>
+
+  @if (error()) {
+    <p class='error'>{{ error() }}</p>
+  }
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/config'>Config</a>
+  </div>
+</section>
+
+<section class='grid'>
+  <article class='card'>
+    <h2>Summary</h2>
+
+    @if (bulletLines().length) {
+      <ul class='bullets'>
+        @for (line of bulletLines(); track line) {
+          <li>{{ line }}</li>
+        }
+      </ul>
+    } @else {
+      <p class='muted'>
+        No summary yet. Set <code>GEMINI_API_KEY</code> on the Config page to enable AI summarization.
+      </p>
+    }
+  </article>
+
+  <article class='card'>
+    <h2>Narration</h2>
+
+    @if (hasAudio()) {
+      <audio #player controls [src]='audioUrl()'></audio>
+      <div class='audio-actions'>
+        <button type='button' (click)='player.play()'>Play</button>
+        <button type='button' class='ghost' (click)='player.pause(); player.currentTime = 0'>
+          Stop
+        </button>
+      </div>
+    } @else {
+      <p class='muted'>
+        No audio generated. Set <code>INWORLD_API_KEY</code> and <code>INWORLD_SECRET</code> to enable narration.
+      </p>
+    }
+
+    @if (briefing()?.narrativeScript) {
+      <details class='script'>
+        <summary>Script</summary>
+        <pre>{{ briefing()?.narrativeScript }}</pre>
+      </details>
+    }
+  </article>
+
+  <article class='card wide'>
+    <div class='head'>
+      <h2>Headlines</h2>
+      <p class='muted'>Top items pulled from each game feed plus generic sources (cached daily).</p>
+    </div>
+
+    @if (groups().length) {
+      <div class='groups'>
+        @for (g of groups(); track g.game) {
+          <details class='group' open>
+            <summary>
+              <span>{{ g.game }}</span>
+              <span class='count'>{{ g.articles.length }}</span>
+            </summary>
+
+            <ul>
+              @for (a of g.articles; track $index) {
+                <li>
+                  <a [href]='a.link' target='_blank' rel='noreferrer'>
+                    {{ a.title || a.link }}
+                  </a>
+                  @if (a.sourceName) {
+                    <span class='src'>{{ a.sourceName }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          </details>
+        }
+      </div>
+    } @else {
+      <p class='muted'>No headlines available yet.</p>
+    }
+  </article>
+</section>

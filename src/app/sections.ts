@@ -13,6 +13,12 @@ export const SECTIONS: LegacySection[] = [
     sources: ['/api/news', '/api/news/refresh', '/api/audio/*']
   },
   {
+    slug: 'game-briefing',
+    title: 'Game Briefing',
+    summary: 'Game events and updates: per-game RSS, persona summary, optional TTS narration.',
+    sources: ['/api/games/briefing', '/api/games/briefing/refresh', '/api/audio/*']
+  },
+  {
     slug: 'angular-portal',
     title: 'Angular Portal Core',
     summary: 'Primary Angular portal currently served at / and :3000 on Pi 2.',

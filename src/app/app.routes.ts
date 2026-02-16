@@ -4,6 +4,7 @@ import { BitcoinLotteryComponent } from './bitcoin-lottery.component';
 import { ConfigComponent } from './config.component';
 import { DashboardComponent } from './dashboard.component';
 import { NewsSummaryComponent } from './news-summary.component';
+import { GameBriefingComponent } from './game-briefing.component';
 import { SectionComponent } from './section.component';
 import { TodoComponent } from './todo.component';
 import { TradingComponent } from './trading.component';
@@ -33,6 +34,11 @@ export const routes: Routes = [
     path: 'section/news-summary',
     component: NewsSummaryComponent,
     title: 'News Summary'
+  },
+  {
+    path: 'section/game-briefing',
+    component: GameBriefingComponent,
+    title: 'Game Briefing'
   },
   {
     path: 'section/trading',
