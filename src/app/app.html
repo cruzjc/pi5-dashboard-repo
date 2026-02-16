@@ -1,4 +1,4 @@
-<div class='app-shell'>
+<div class='app-shell' [attr.data-theme]='dailyTheme.id'>
   <header class='topbar'>
     <a class='brand' routerLink='/'>Pi5 Unified Dashboard</a>
 
@@ -36,6 +36,8 @@
 
   <footer class='footer'>
     <span>Pi5 dashboard scaffold</span>
+    <span class='dot' aria-hidden='true'></span>
+    <span>theme: {{ dailyTheme.label }}</span>
     <span class='dot' aria-hidden='true'></span>
     <a routerLink='/todo'>migration todo</a>
   </footer>
