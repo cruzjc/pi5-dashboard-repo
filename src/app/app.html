@@ -4,7 +4,6 @@
 
     <nav class='nav-wide'>
       <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Home</a>
-      <a routerLink='/todo' routerLinkActive='active'>Todo</a>
       <details class='sections'>
         <summary>Sections</summary>
         <div class='menu'>
@@ -20,7 +19,6 @@
       <summary aria-label='Menu'>Menu</summary>
       <div class='menu'>
         <a routerLink='/' routerLinkActive='active' [routerLinkActiveOptions]='{ exact: true }'>Home</a>
-        <a routerLink='/todo' routerLinkActive='active'>Todo</a>
         <a routerLink='/config' routerLinkActive='active'>Config</a>
         <div class='divider'></div>
         @for (section of sections; track section.slug) {
@@ -38,7 +36,5 @@
     <span>Pi5 dashboard scaffold</span>
     <span class='dot' aria-hidden='true'></span>
     <span>theme: {{ dailyTheme.label }}</span>
-    <span class='dot' aria-hidden='true'></span>
-    <a routerLink='/todo'>migration todo</a>
   </footer>
 </div>
