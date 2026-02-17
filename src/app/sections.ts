@@ -32,24 +32,6 @@ export const SECTIONS: LegacySection[] = [
     sources: ['/api/podcast-videos', '/api/podcast-videos/refresh']
   },
   {
-    slug: 'angular-portal',
-    title: 'Angular Portal Core',
-    summary: 'Primary Angular portal currently served at / and :3000 on Pi 2.',
-    sources: ['http://192.168.4.12/', 'http://192.168.4.12:3000/']
-  },
-  {
-    slug: 'alt-openclaw-portal',
-    title: 'Alt OpenClaw Portal',
-    summary: 'Legacy static portal currently at /alt on Pi 2.',
-    sources: ['http://192.168.4.12/alt']
-  },
-  {
-    slug: 'openclaw-status',
-    title: 'OpenClaw Status',
-    summary: 'Status interface and API for OpenClaw health information.',
-    sources: ['http://192.168.4.12/openclaw', 'http://192.168.4.12/api/openclaw/status']
-  },
-  {
     slug: 'bitcoin-lottery',
     title: 'Bitcoin Lottery',
     summary: 'Lottery UI with proxy-backed API calls.',
@@ -72,25 +54,5 @@ export const SECTIONS: LegacySection[] = [
       '~/.pi5-dashboard-data/trading/research_journal.json',
       '~/pi5-dashboard-repo/trading-research/enhanced_researcher.py'
     ]
-  },
-  {
-    slug: 'portal-dashboard-pages',
-    title: 'Portal Dashboard Legacy Pages',
-    summary: 'Legacy dashboard and /ui pages under portal.pi2 host routing.',
-    sources: [
-      'http://portal.pi2/dashboard',
-      'http://portal.pi2/ui/briefing.html',
-      'http://portal.pi2/ui/github.html',
-      'http://portal.pi2/ui/manage.html',
-      'http://portal.pi2/ui/settings.html',
-      'http://portal.pi2/ui/trading.html',
-      'http://portal.pi2/ui/voices.html'
-    ]
-  },
-  {
-    slug: 'task-queue',
-    title: 'Task Queue',
-    summary: 'Queue workflows and wake coordination API currently proxied under /queue/*.',
-    sources: ['http://192.168.4.12/queue/api/health', 'http://192.168.4.12/queue/api/tasks']
   }
 ];
