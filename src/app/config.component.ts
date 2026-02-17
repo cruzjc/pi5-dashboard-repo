@@ -106,6 +106,20 @@ const KNOWN_KEYS: KeyDef[] = [
     description: 'Optional: comma/newline-separated list of games for the Game Briefing page.',
     placeholder: 'Arknights\nGenshin Impact\nHonkai: Star Rail',
     multiline: true
+  },
+  {
+    key: 'RESEARCH_PAPER_TOPICS',
+    label: 'Research Paper Topics',
+    description: 'Optional: topics to include for Research Papers (AI, Tech, Physics).',
+    placeholder: 'AI\nTech\nPhysics',
+    multiline: true
+  },
+  {
+    key: 'RESEARCH_PAPER_GEMINI_MODELS',
+    label: 'Research Paper Gemini Models',
+    description: 'Optional: ordered fallback list for summarization model selection.',
+    placeholder: 'gemini-3-deep-think\ngemini-2.5-pro\ngemini-2.0-flash',
+    multiline: true
   }
 ];
 

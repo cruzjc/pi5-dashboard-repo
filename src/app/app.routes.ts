@@ -7,6 +7,7 @@ import { NewsSummaryComponent } from './news-summary.component';
 import { GameBriefingComponent } from './game-briefing.component';
 import { GithubWaffleComponent } from './github-waffle.component';
 import { PodcastVideosComponent } from './podcast-videos.component';
+import { ResearchPapersComponent } from './research-papers.component';
 import { SectionComponent } from './section.component';
 import { TodoComponent } from './todo.component';
 import { TradingComponent } from './trading.component';
@@ -42,6 +43,11 @@ export const routes: Routes = [
     path: 'section/game-briefing',
     component: GameBriefingComponent,
     title: 'Game Briefing'
+  },
+  {
+    path: 'section/research-papers',
+    component: ResearchPapersComponent,
+    title: 'Research Papers'
   },
   {
     path: 'section/github-waffle',

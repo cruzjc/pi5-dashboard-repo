@@ -1,0 +1,147 @@
+<section class='hero'>
+  <p class='eyebrow'>AI Briefing</p>
+
+  <div class='title-row'>
+    <h1>Research Papers</h1>
+    <div class='actions'>
+      <button type='button' (click)='refresh()' [disabled]='loading() || running()'>
+        {{ loading() ? 'Loading...' : 'Refresh' }}
+      </button>
+      <button
+        type='button'
+        class='accent'
+        (click)='run()'
+        [disabled]='loading() || running()'
+      >
+        {{ runLabel() }}
+      </button>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Pulls latest papers from curated feeds, prioritizes AI, tech, and physics, then summarizes in a random persona with optional narration.
+    Cost control: the Deep Research agent run is limited to once per month, and results are archived per month for history.
+  </p>
+
+  <div class='meta'>
+    <div>
+      <span class='k'>Status</span>
+      <span class='v'>{{ statusLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Period</span>
+      <span class='v'><code>{{ periodLabel() }}</code></span>
+    </div>
+    <div>
+      <span class='k'>Next Eligible</span>
+      <span class='v'><code>{{ nextEligibleLabel() }}</code></span>
+    </div>
+    <div>
+      <span class='k'>Persona</span>
+      <span class='v'>{{ personaLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Generated</span>
+      <span class='v'>{{ generatedAtLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Topics</span>
+      <span class='v'>{{ topicsLabel() }}</span>
+    </div>
+    <div>
+      <span class='k'>Model</span>
+      <span class='v'><code>{{ modelLabel() }}</code></span>
+    </div>
+  </div>
+
+  @if (messageText()) {
+    <p class='note'>{{ messageText() }}</p>
+  }
+
+  @if (error()) {
+    <p class='error'>{{ error() }}</p>
+  }
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/config'>Config</a>
+  </div>
+</section>
+
+<section class='grid'>
+  <article class='card'>
+    <h2>Summary</h2>
+
+    @if (bulletLines().length) {
+      <ul class='bullets'>
+        @for (line of bulletLines(); track line) {
+          <li>{{ line }}</li>
+        }
+      </ul>
+    } @else {
+      <p class='muted'>
+        {{ emptySummaryHint() }}
+      </p>
+    }
+  </article>
+
+  <article class='card'>
+    <h2>Narration</h2>
+
+    @if (hasAudio()) {
+      <audio #player controls [src]='audioUrl()'></audio>
+      <div class='audio-actions'>
+        <button type='button' (click)='player.play()'>Play</button>
+        <button type='button' class='ghost' (click)='player.pause(); player.currentTime = 0'>
+          Stop
+        </button>
+      </div>
+    } @else {
+      <p class='muted'>
+        No audio generated. Set <code>INWORLD_API_KEY</code> and <code>INWORLD_SECRET</code> to enable narration.
+      </p>
+    }
+
+    @if (briefing()?.narrativeScript) {
+      <details class='script'>
+        <summary>Script</summary>
+        <pre>{{ briefing()?.narrativeScript }}</pre>
+      </details>
+    }
+  </article>
+
+  <article class='card wide'>
+    <div class='head'>
+      <h2>Papers</h2>
+      <p class='muted'>Latest per source, grouped by topic and cached monthly.</p>
+    </div>
+
+    @if (groups().length) {
+      <div class='groups'>
+        @for (g of groups(); track g.topic) {
+          <details class='group' open>
+            <summary>
+              <span>{{ g.topic }}</span>
+              <span class='count'>{{ g.articles.length }}</span>
+            </summary>
+
+            <ul>
+              @for (a of g.articles; track $index) {
+                <li>
+                  <a [href]='a.link' target='_blank' rel='noreferrer'>
+                    {{ a.title || a.link }}
+                  </a>
+                  @if (a.sourceName) {
+                    <span class='src'>{{ a.sourceName }}</span>
+                  }
+                </li>
+              }
+            </ul>
+          </details>
+        }
+      </div>
+    } @else {
+      <p class='muted'>No papers available yet.</p>
+    }
+  </article>
+</section>

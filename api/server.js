@@ -15,6 +15,7 @@ const DATA_DIR =
   process.env.PI5_DASHBOARD_DATA_DIR || path.join(os.homedir(), '.pi5-dashboard-data');
 const BRIEFINGS_DIR = path.join(DATA_DIR, 'briefings');
 const GAME_BRIEFINGS_DIR = path.join(DATA_DIR, 'game-briefings');
+const RESEARCH_PAPER_BRIEFINGS_DIR = path.join(DATA_DIR, 'research-paper-briefings');
 const PODCAST_VIDEOS_DIR = path.join(DATA_DIR, 'podcast-videos');
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
 
@@ -270,6 +271,14 @@ const MAX_GAMES = 12;
 const GAME_SOURCE_ITEM_LIMIT = 8;
 const GENERIC_SOURCE_ITEM_LIMIT = 25;
 const MAX_ARTICLES_PER_GAME = 14;
+const DEFAULT_RESEARCH_TOPICS = ['AI', 'Tech', 'Physics'];
+const RESEARCH_PAPER_ITEM_LIMIT_PER_SOURCE = 8;
+const MAX_RESEARCH_ARTICLES = 60;
+const RESEARCH_PAPER_TOPIC_PRIORITIES = ['AI', 'Tech', 'Physics'];
+const DEFAULT_RESEARCH_GEMINI_MODELS = ['gemini-3-deep-think', 'gemini-2.5-pro', 'gemini-2.0-flash'];
+const RESEARCH_PAPER_INTERACTION_AGENT = String(
+  process.env.RESEARCH_PAPER_INTERACTION_AGENT || 'deep-research-pro-preview-12-2025'
+).trim();
 
 const GAME_REDDIT_SUBREDDITS = {
   Arknights: 'arknights',
@@ -297,6 +306,65 @@ const GENERIC_GAME_SOURCES = [
     id: 'GG2',
     name: 'Gematsu',
     url: 'https://www.gematsu.com/feed',
+    enabled: true
+  }
+];
+
+const RESEARCH_PAPER_SOURCES = [
+  {
+    id: 'RP1',
+    name: 'arXiv Computer Science (AI)',
+    url: 'https://export.arxiv.org/rss/cs.AI',
+    topic: 'AI',
+    enabled: true
+  },
+  {
+    id: 'RP2',
+    name: 'arXiv Machine Learning',
+    url: 'https://export.arxiv.org/rss/cs.LG',
+    topic: 'AI',
+    enabled: true
+  },
+  {
+    id: 'RP3',
+    name: 'arXiv Computation and Language',
+    url: 'https://export.arxiv.org/rss/cs.CL',
+    topic: 'AI',
+    enabled: true
+  },
+  {
+    id: 'RP4',
+    name: 'arXiv Computer Science',
+    url: 'https://export.arxiv.org/rss/cs',
+    topic: 'Tech',
+    enabled: true
+  },
+  {
+    id: 'RP5',
+    name: 'arXiv Information Theory',
+    url: 'https://export.arxiv.org/rss/cs.IT',
+    topic: 'Tech',
+    enabled: true
+  },
+  {
+    id: 'RP6',
+    name: 'arXiv Quantum Physics',
+    url: 'https://export.arxiv.org/rss/quant-ph',
+    topic: 'Physics',
+    enabled: true
+  },
+  {
+    id: 'RP7',
+    name: 'arXiv Astrophysics',
+    url: 'https://export.arxiv.org/rss/astro-ph',
+    topic: 'Physics',
+    enabled: true
+  },
+  {
+    id: 'RP8',
+    name: 'arXiv High Energy Physics',
+    url: 'https://export.arxiv.org/rss/hep-ph',
+    topic: 'Physics',
     enabled: true
   }
 ];
@@ -387,6 +455,12 @@ function localDateString(d = new Date()) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function localMonthString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
 function ensureDir(dir, mode = 0o700) {
@@ -873,9 +947,59 @@ function writeGameBriefingAtomic(date, obj) {
   fs.chmodSync(file, 0o600);
 }
 
-async function callGemini(geminiApiKey, prompt) {
+function normalizeMonthPeriod(raw) {
+  const t = String(raw || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(t)) return '';
+  const mm = Number.parseInt(t.slice(5, 7), 10);
+  if (!Number.isFinite(mm) || mm < 1 || mm > 12) return '';
+  return t;
+}
+
+function addMonths(period, count) {
+  const p = normalizeMonthPeriod(period);
+  if (!p) return '';
+  const y = Number.parseInt(p.slice(0, 4), 10);
+  const m = Number.parseInt(p.slice(5, 7), 10);
+  const d = new Date(Date.UTC(y, m - 1 + count, 1, 0, 0, 0));
+  const yy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  return `${yy}-${mm}`;
+}
+
+function researchPaperBriefingPath(period) {
+  const p = normalizeMonthPeriod(period);
+  if (!p) return '';
+  return path.join(RESEARCH_PAPER_BRIEFINGS_DIR, `${p}.json`);
+}
+
+function readResearchPaperBriefing(period) {
+  const file = researchPaperBriefingPath(period);
+  if (!file) return null;
+  if (!fs.existsSync(file)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeResearchPaperBriefingAtomic(period, obj) {
+  ensureDir(RESEARCH_PAPER_BRIEFINGS_DIR, 0o700);
+  const file = researchPaperBriefingPath(period);
+  if (!file) throw new Error('invalid period');
+  const tmp = `${file}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, file);
+  fs.chmodSync(file, 0o600);
+}
+
+function trimModelName(raw) {
+  return String(raw || '').trim();
+}
+
+async function callGeminiModel(geminiApiKey, model, prompt) {
   const endpoint =
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(trimModelName(model))}:generateContent?key=${encodeURIComponent(geminiApiKey)}`;
 
   const r = await fetch(endpoint, {
     method: 'POST',
@@ -894,6 +1018,113 @@ async function callGemini(geminiApiKey, prompt) {
 
   const data = await r.json();
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+async function callGemini(geminiApiKey, prompt) {
+  return callGeminiModel(geminiApiKey, 'gemini-2.0-flash', prompt);
+}
+
+async function callGeminiInteractions(geminiApiKey, method, pathname, body) {
+  const url = `https://generativelanguage.googleapis.com/v1beta${pathname}`;
+
+  const r = await fetch(url, {
+    method,
+    signal: AbortSignal.timeout(20_000),
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'x-goog-api-key': geminiApiKey
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+
+  const text = await r.text().catch(() => '');
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!r.ok) {
+    const msg =
+      (data && typeof data === 'object' && data.error && data.error.message) ||
+      (data && typeof data === 'object' && data.message) ||
+      text.slice(0, 180) ||
+      `HTTP ${r.status}`;
+    throw new Error(`Gemini Interactions HTTP ${r.status}: ${msg}`);
+  }
+
+  return data;
+}
+
+async function createGeminiAgentInteraction(geminiApiKey, agent, input) {
+  const body = {
+    agent,
+    input,
+    background: true,
+    store: true
+  };
+
+  return callGeminiInteractions(geminiApiKey, 'POST', '/interactions', body);
+}
+
+async function getGeminiInteraction(geminiApiKey, id) {
+  const safe = String(id || '').trim();
+  if (!safe) throw new Error('missing interaction id');
+  return callGeminiInteractions(geminiApiKey, 'GET', `/interactions/${encodeURIComponent(safe)}`);
+}
+
+function interactionTextFromOutputs(outputs) {
+  if (!Array.isArray(outputs)) return '';
+  return outputs
+    .filter((o) => o && typeof o === 'object' && o.type === 'text' && typeof o.text === 'string')
+    .map((o) => o.text)
+    .join('\n')
+    .trim();
+}
+
+function normalizeTopicName(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return '';
+  const lower = t.toLowerCase();
+  if (lower === 'ai' || lower === 'ml' || lower === 'machine learning') return 'AI';
+  if (lower === 'tech' || lower === 'technology') return 'Tech';
+  if (lower === 'physics' || lower === 'phys') return 'Physics';
+  return t;
+}
+
+function readResearchPaperTopics(env) {
+  const configured = parseStringList(env.RESEARCH_PAPER_TOPICS);
+  const desired = configured.length ? configured : DEFAULT_RESEARCH_TOPICS;
+  const out = [];
+  const seen = new Set();
+
+  for (const item of desired) {
+    const topic = normalizeTopicName(item);
+    const key = topic.toLowerCase();
+    if (!topic || seen.has(key)) continue;
+    seen.add(key);
+    out.push(topic);
+  }
+
+  return out.length ? out : DEFAULT_RESEARCH_TOPICS.slice();
+}
+
+function readResearchPaperGeminiModels(env) {
+  const raw = parseStringList(env.RESEARCH_PAPER_GEMINI_MODELS || env.RESEARCH_PAPER_GEMINI_MODEL);
+  const merged = [...raw, ...DEFAULT_RESEARCH_GEMINI_MODELS];
+  const out = [];
+  const seen = new Set();
+
+  for (const model of merged) {
+    const trimmed = trimModelName(model);
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+
+  return out.length ? out : DEFAULT_RESEARCH_GEMINI_MODELS.slice();
 }
 
 function cleanModelText(raw) {
@@ -1062,6 +1293,7 @@ function serveAudio(res, name) {
 
 const inFlightByDate = new Map();
 const inFlightGameByKey = new Map();
+const inFlightResearchPaperByKey = new Map();
 const inFlightTradingResearchByMode = new Map();
 const inFlightPodcastByDate = new Map();
 let inFlightTradingResearchRun = null;
@@ -1518,6 +1750,458 @@ async function getOrGenerateGameBriefing(force) {
 
   inFlightGameByKey.set(key, p);
   return p;
+}
+
+function topicPriority(topic, configuredTopics) {
+  const normalized = normalizeTopicName(topic);
+  const direct = configuredTopics.indexOf(normalized);
+  if (direct !== -1) return direct;
+
+  const fallback = RESEARCH_PAPER_TOPIC_PRIORITIES.indexOf(normalized);
+  if (fallback !== -1) return configuredTopics.length + fallback;
+
+  return 999;
+}
+
+function articleSortByTopicAndDate(a, b, configuredTopics) {
+  const ta = topicPriority(a.topic, configuredTopics);
+  const tb = topicPriority(b.topic, configuredTopics);
+  if (ta !== tb) return ta - tb;
+
+  const da = Number.isNaN(Date.parse(String(a.pubDate || ''))) ? 0 : Date.parse(String(a.pubDate || ''));
+  const db = Number.isNaN(Date.parse(String(b.pubDate || ''))) ? 0 : Date.parse(String(b.pubDate || ''));
+  return db - da;
+}
+
+async function generateResearchPaperBriefing(force) {
+  throw new Error(`deprecated: generateResearchPaperBriefing(${force})`);
+}
+
+function listResearchPaperBriefingHistory() {
+  try {
+    if (!fs.existsSync(RESEARCH_PAPER_BRIEFINGS_DIR)) return [];
+    const entries = fs.readdirSync(RESEARCH_PAPER_BRIEFINGS_DIR, { withFileTypes: true });
+    const out = [];
+    for (const ent of entries) {
+      if (!ent.isFile()) continue;
+      const name = String(ent.name || '');
+      if (!name.endsWith('.json')) continue;
+      const base = name.slice(0, -5);
+      const period = normalizeMonthPeriod(base);
+      if (period) out.push(period);
+    }
+    out.sort((a, b) => b.localeCompare(a));
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function buildResearchPaperPrompt(period, topics, persona, articles) {
+  const personalityInstruction = persona?.personality
+    ? `PERSONALITY: ${persona.personality}\n\nPresent this research briefing in this character\'s style and voice.\n\n`
+    : '';
+
+  const paperLines = (articles || []).slice(0, 90).map((a, idx) => {
+    const snip = String(a.snippet || '').replace(/\s+/g, ' ').trim();
+    const shortSnip = snip.length > 260 ? `${snip.slice(0, 257)}...` : snip;
+    const linkText = a.link ? ` (${a.link})` : '';
+    return `${idx + 1}. [${a.topic}] ${a.title}${shortSnip ? ` — ${shortSnip}` : ''}${linkText}`;
+  });
+
+  return `${personalityInstruction}You are a research curator and narrator. Create a research-paper briefing for period ${period}, focused on these topics: ${topics.join(
+    ', '
+  )}.
+
+IMPORTANT:
+- Prioritize AI first, then Tech, then Physics.
+- Use ONLY the provided paper titles/snippets and links. Do not invent findings, claims, or results.
+- Keep BULLETS concise and actionable.
+- SCRIPT should be 2-3 minutes when read aloud (about 280-520 words).
+- Mention a few specific paper titles in the script.
+- Do not use markdown.
+
+Return exactly this format:
+
+BULLETS:
+- Topic: concise summary line
+SCRIPT:
+A complete narrative script in the persona's voice.
+
+Papers:
+${paperLines.join('\n')}`;
+}
+
+function makeResearchPaperPlaceholder(period, topics, topicsKey) {
+  return {
+    period,
+    runPolicy: 'monthly',
+    nextEligiblePeriod: addMonths(period, 1),
+    status: 'not_generated',
+    message: 'No monthly snapshot yet. Press Run to start (limited to once per month).',
+    topics,
+    topicsKey,
+    date: localDateString(),
+    startedAt: '',
+    generatedAt: '',
+    modelUsed: '',
+    modelCandidates: [],
+    interaction: null,
+    persona: null,
+    summaryText: '',
+    narrativeScript: '',
+    audioPlaylist: [],
+    articles: []
+  };
+}
+
+function decorateResearchPaperResponse(period, briefing, env, currentTopics, currentTopicsKey, extraMessage = '') {
+  const out =
+    briefing && typeof briefing === 'object' && !Array.isArray(briefing) ? { ...briefing } : makeResearchPaperPlaceholder(period, currentTopics, currentTopicsKey);
+
+  out.period = period;
+  out.runPolicy = 'monthly';
+  out.nextEligiblePeriod = addMonths(period, 1);
+
+  if (out.topicsKey && currentTopicsKey && out.topicsKey !== currentTopicsKey) {
+    out.configMismatch = {
+      storedTopics: Array.isArray(out.topics) ? out.topics : [],
+      storedTopicsKey: out.topicsKey,
+      currentTopics,
+      currentTopicsKey
+    };
+  }
+
+  if (extraMessage) {
+    out.message = extraMessage;
+  } else if (!out.message) {
+    out.message = '';
+  }
+
+  if (env && env.GEMINI_API_KEY) {
+    out.geminiConfigured = true;
+  } else {
+    out.geminiConfigured = false;
+  }
+
+  return out;
+}
+
+async function fetchResearchPaperArticles(topics) {
+  const sourceTopicSet = new Set((topics || []).map((t) => normalizeTopicName(t)));
+  const sources = RESEARCH_PAPER_SOURCES.filter(
+    (s) => s.enabled && sourceTopicSet.has(normalizeTopicName(s.topic))
+  );
+
+  const results = await mapLimit(sources, 8, async (source) => {
+    const items = await fetchAndParseFeed(source.url);
+    return { source, items };
+  });
+
+  const articles = [];
+  const seen = new Set();
+
+  for (const { source, items } of results) {
+    for (const item of items.slice(0, RESEARCH_PAPER_ITEM_LIMIT_PER_SOURCE)) {
+      const title = item.title || '';
+      const link = item.link || '';
+      const snippet = item.contentSnippet || '';
+      const pubDate = item.pubDate || '';
+      const topic = normalizeTopicName(source.topic) || 'Other';
+
+      if (!title && !link) continue;
+      const dedupeKey = `${topic}|${String(link).trim()}|${String(title).trim().toLowerCase()}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+
+      articles.push({
+        topic,
+        title,
+        link,
+        snippet,
+        sourceName: source.name || '',
+        pubDate
+      });
+    }
+  }
+
+  articles.sort((a, b) => articleSortByTopicAndDate(a, b, topics));
+  return articles.slice(0, MAX_RESEARCH_ARTICLES);
+}
+
+function applyModelTextToBriefing(briefing, modelText) {
+  const content = parseBriefingSections(modelText) || parseBriefingJson(modelText);
+
+  if (content && typeof content.bulletPoints === 'string' && content.bulletPoints.trim()) {
+    briefing.summaryText = content.bulletPoints.trim();
+  } else {
+    briefing.summaryText = cleanModelText(modelText) || 'Summary generated.';
+  }
+
+  if (content && typeof content.narrativeScript === 'string') {
+    briefing.narrativeScript = content.narrativeScript.trim();
+  }
+}
+
+async function finalizeResearchPaperBriefing(briefing, env, modelText) {
+  applyModelTextToBriefing(briefing, modelText);
+  briefing.status = 'completed';
+  briefing.generatedAt = nowIso();
+
+  briefing.audioPlaylist = Array.isArray(briefing.audioPlaylist) ? briefing.audioPlaylist : [];
+
+  const inworldApiKey = env.INWORLD_API_KEY;
+  const inworldSecret = env.INWORLD_SECRET;
+  const narrative = String(briefing.narrativeScript || '').trim();
+
+  if (inworldApiKey && inworldSecret && narrative.length > 50) {
+    try {
+      const voiceId = briefing?.persona?.voiceId || 'Ashley';
+      const audio = await generateInworldAudio(
+        inworldApiKey,
+        inworldSecret,
+        voiceId,
+        narrative,
+        `research-papers-${briefing.period || 'monthly'}`
+      );
+      briefing.audioPlaylist.push({
+        title: 'Research Papers Briefing',
+        url: audio.url,
+        type: 'summary',
+        voice: audio.voiceId
+      });
+    } catch {
+      // Ignore audio failures.
+    }
+  }
+}
+
+async function pollResearchPaperInteractionIfReady(existing, env) {
+  if (!existing || typeof existing !== 'object') return existing;
+  const interaction = existing.interaction && typeof existing.interaction === 'object' ? existing.interaction : null;
+  const id = interaction && interaction.id ? String(interaction.id).trim() : '';
+  if (!id) return existing;
+
+  const status = String(existing.status || interaction.status || '').trim();
+  if (status === 'completed' || status === 'failed' || status === 'cancelled') return existing;
+
+  const geminiApiKey = env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    existing.message = 'Missing GEMINI_API_KEY; cannot poll interaction.';
+    return existing;
+  }
+
+  let latest = null;
+  try {
+    latest = await getGeminiInteraction(geminiApiKey, id);
+  } catch (e) {
+    existing.message = e instanceof Error ? e.message : String(e);
+    return existing;
+  }
+
+  const latestStatus = String(latest?.status || '').trim() || 'in_progress';
+  existing.interaction = {
+    ...(interaction || {}),
+    status: latestStatus,
+    updated: latest?.updated || nowIso()
+  };
+  existing.status = latestStatus;
+
+  if (latestStatus === 'completed') {
+    const modelText = interactionTextFromOutputs(latest?.outputs) || '';
+    if (!modelText) {
+      existing.status = 'failed';
+      existing.message = 'Interaction completed but returned no text output.';
+      return existing;
+    }
+
+    existing.modelUsed = existing.modelUsed || existing.interaction?.agent || '';
+    await finalizeResearchPaperBriefing(existing, env, modelText);
+    return existing;
+  }
+
+  if (latestStatus === 'failed' || latestStatus === 'cancelled') {
+    existing.message = 'Interaction failed.';
+    return existing;
+  }
+
+  existing.message = 'Generation in progress. Check back later.';
+  return existing;
+}
+
+async function getResearchPaperBriefing(period) {
+  const p = normalizeMonthPeriod(period) || localMonthString();
+  const env = readEnvMap();
+  const topics = readResearchPaperTopics(env);
+  const topicsKey = stableListKey(topics);
+
+  const existing = readResearchPaperBriefing(p);
+  if (!existing) {
+    return decorateResearchPaperResponse(p, null, env, topics, topicsKey);
+  }
+
+  const updated = await pollResearchPaperInteractionIfReady({ ...existing }, env);
+  if (updated && updated.status !== existing.status) {
+    try {
+      writeResearchPaperBriefingAtomic(p, updated);
+    } catch {
+      // ignore
+    }
+  } else if (updated && updated.status === 'completed' && !existing.generatedAt && updated.generatedAt) {
+    try {
+      writeResearchPaperBriefingAtomic(p, updated);
+    } catch {
+      // ignore
+    }
+  }
+
+  return decorateResearchPaperResponse(p, updated, env, topics, topicsKey);
+}
+
+async function refreshResearchPaperBriefing(period) {
+  const p = normalizeMonthPeriod(period) || localMonthString();
+  const env = readEnvMap();
+  const topics = readResearchPaperTopics(env);
+  const topicsKey = stableListKey(topics);
+  const modelCandidates = readResearchPaperGeminiModels(env);
+
+  const existing = readResearchPaperBriefing(p);
+  if (existing) {
+    const updated = await pollResearchPaperInteractionIfReady({ ...existing }, env);
+    if (updated && updated.status !== existing.status) {
+      writeResearchPaperBriefingAtomic(p, updated);
+    }
+
+    if (String(updated?.status || '') === 'completed') {
+      return decorateResearchPaperResponse(
+        p,
+        updated,
+        env,
+        topics,
+        topicsKey,
+        `Already generated for ${p}. Next eligible period: ${addMonths(p, 1)}.`
+      );
+    }
+
+    writeResearchPaperBriefingAtomic(p, updated);
+    return decorateResearchPaperResponse(p, updated, env, topics, topicsKey);
+  }
+
+  const geminiApiKey = env.GEMINI_API_KEY;
+  if (!geminiApiKey) {
+    return decorateResearchPaperResponse(
+      p,
+      null,
+      env,
+      topics,
+      topicsKey,
+      'Missing GEMINI_API_KEY. Set it on the Config page to enable summarization.'
+    );
+  }
+
+  const articles = await fetchResearchPaperArticles(topics);
+  const persona = chooseRandom(DEFAULT_PERSONAS) || DEFAULT_PERSONAS[0];
+  const prompt = buildResearchPaperPrompt(p, topics, persona, articles);
+
+  const base = {
+    period: p,
+    runPolicy: 'monthly',
+    nextEligiblePeriod: addMonths(p, 1),
+    status: 'starting',
+    message: '',
+    date: localDateString(),
+    startedAt: nowIso(),
+    generatedAt: '',
+    topics,
+    topicsKey,
+    modelUsed: '',
+    modelCandidates,
+    interaction: null,
+    persona: { name: persona?.name || 'Unknown', voiceId: persona?.voiceId || 'Ashley' },
+    summaryText: '',
+    narrativeScript: '',
+    audioPlaylist: [],
+    articles
+  };
+
+  // Start agent interaction (async) so we can poll later without re-executing the agent.
+  try {
+    const created = await createGeminiAgentInteraction(
+      geminiApiKey,
+      RESEARCH_PAPER_INTERACTION_AGENT,
+      prompt
+    );
+
+    base.status = String(created?.status || 'in_progress') || 'in_progress';
+    base.interaction = {
+      id: created?.id || '',
+      agent: created?.agent || RESEARCH_PAPER_INTERACTION_AGENT,
+      status: String(created?.status || 'in_progress') || 'in_progress',
+      created: created?.created || nowIso(),
+      updated: created?.updated || nowIso()
+    };
+    base.modelUsed = base.interaction.agent;
+    base.message = 'Generation started (monthly). This may take a bit; refresh to poll status.';
+
+    writeResearchPaperBriefingAtomic(p, base);
+    return decorateResearchPaperResponse(p, base, env, topics, topicsKey);
+  } catch (e) {
+    // Fallback: standard generateContent path (still counts as the monthly run).
+    let modelText = '';
+    let modelUsed = '';
+    let lastErr = e instanceof Error ? e : new Error(String(e));
+
+    for (const model of modelCandidates) {
+      try {
+        const out = await callGeminiModel(geminiApiKey, model, prompt);
+        if (cleanModelText(out)) {
+          modelText = out;
+          modelUsed = model;
+          break;
+        }
+      } catch (err) {
+        lastErr = err instanceof Error ? err : new Error(String(err));
+      }
+    }
+
+    if (!modelText) {
+      return decorateResearchPaperResponse(
+        p,
+        null,
+        env,
+        topics,
+        topicsKey,
+        lastErr ? lastErr.message : 'Failed to start generation.'
+      );
+    }
+
+    base.status = 'completed';
+    base.modelUsed = modelUsed;
+    await finalizeResearchPaperBriefing(base, env, modelText);
+    writeResearchPaperBriefingAtomic(p, base);
+    return decorateResearchPaperResponse(p, base, env, topics, topicsKey);
+  }
+}
+
+async function getOrDoResearchPaperBriefing(period, action) {
+  const p = normalizeMonthPeriod(period) || localMonthString();
+  const key = `${p}:${action}`;
+
+  const existing = inFlightResearchPaperByKey.get(key);
+  if (existing) return existing;
+
+  const fn = action === 'refresh' ? refreshResearchPaperBriefing : getResearchPaperBriefing;
+
+  const promise = (async () => {
+    try {
+      return await fn(p);
+    } finally {
+      inFlightResearchPaperByKey.delete(key);
+    }
+  })();
+
+  inFlightResearchPaperByKey.set(key, promise);
+  return promise;
 }
 
 async function generatePodcastVideos(force) {
@@ -2223,6 +2907,39 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === 'POST' && url.pathname === '/api/games/briefing/refresh') {
       const briefing = await getOrGenerateGameBriefing(true);
+      sendJson(res, 200, briefing);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/research-papers/briefing/history') {
+      const periods = listResearchPaperBriefingHistory();
+      sendJson(res, 200, {
+        ok: true,
+        periods,
+        count: periods.length,
+        dir: RESEARCH_PAPER_BRIEFINGS_DIR,
+        now: nowIso()
+      });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/research-papers/briefing') {
+      const requested = normalizeMonthPeriod(url.searchParams.get('month'));
+      const period = requested || localMonthString();
+      const briefing = await getOrDoResearchPaperBriefing(period, 'get');
+      sendJson(res, 200, briefing);
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/research-papers/briefing/refresh') {
+      const requested = normalizeMonthPeriod(url.searchParams.get('month'));
+      const current = localMonthString();
+      if (requested && requested !== current) {
+        jsonError(res, 400, 'refresh only allowed for current month');
+        return;
+      }
+      const period = requested || current;
+      const briefing = await getOrDoResearchPaperBriefing(period, 'refresh');
       sendJson(res, 200, briefing);
       return;
     }
