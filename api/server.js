@@ -18,6 +18,8 @@ const GAME_BRIEFINGS_DIR = path.join(DATA_DIR, 'game-briefings');
 const RESEARCH_PAPER_BRIEFINGS_DIR = path.join(DATA_DIR, 'research-paper-briefings');
 const PODCAST_VIDEOS_DIR = path.join(DATA_DIR, 'podcast-videos');
 const AUDIO_DIR = path.join(DATA_DIR, 'audio');
+const BOOKMARKS_FILE =
+  process.env.PI5_DASHBOARD_BOOKMARKS_FILE || path.join(DATA_DIR, 'bookmarks.json');
 
 const CATEGORY_PRIORITIES = [
   'Breaking News',
@@ -583,6 +585,108 @@ function writeEnvMapAtomic(map) {
 
 function jsonError(res, code, msg) {
   sendJson(res, code, { ok: false, error: msg });
+}
+
+function normalizeBookmarkEntry(raw) {
+  if (!raw || typeof raw !== 'object') return { blank: false, ok: false, bookmark: null };
+
+  const title = String(raw.title || '').trim();
+  const url = String(raw.url || '').trim();
+  const description = String(raw.description || '').trim();
+
+  const blank = !title && !url && !description;
+  if (blank) return { blank: true, ok: true, bookmark: null };
+
+  if (!title || !url) return { blank: false, ok: false, bookmark: null };
+
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { blank: false, ok: false, bookmark: null };
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return { blank: false, ok: false, bookmark: null };
+  }
+
+  const out = {
+    title: title.slice(0, 120),
+    url: parsed.toString().slice(0, 2048)
+  };
+  if (description) out.description = description.slice(0, 240);
+
+  return { blank: false, ok: true, bookmark: out };
+}
+
+function normalizeBookmarksPayload(raw) {
+  const list =
+    Array.isArray(raw) ? raw : raw && typeof raw === 'object' && Array.isArray(raw.bookmarks) ? raw.bookmarks : null;
+  if (!list) return { ok: false, error: 'missing bookmarks list', bookmarks: [], invalidRows: 0 };
+
+  const out = [];
+  let invalidRows = 0;
+
+  for (const item of list) {
+    const r = normalizeBookmarkEntry(item);
+    if (r.blank) continue;
+    if (!r.ok || !r.bookmark) {
+      invalidRows += 1;
+      continue;
+    }
+    if (out.length >= 200) {
+      invalidRows += 1;
+      break;
+    }
+    out.push(r.bookmark);
+  }
+
+  return { ok: invalidRows === 0, error: invalidRows ? 'invalid bookmarks' : '', bookmarks: out, invalidRows };
+}
+
+function readBookmarksFromDisk() {
+  try {
+    const raw = fs.readFileSync(BOOKMARKS_FILE, 'utf8');
+    const text = String(raw || '').trim();
+    if (!text) return { bookmarks: [], updatedAt: '' };
+
+    let data = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return { bookmarks: [], updatedAt: '' };
+    }
+
+    let updatedAt =
+      data && typeof data === 'object' && typeof data.updatedAt === 'string' ? String(data.updatedAt) : '';
+
+    if (!updatedAt) {
+      try {
+        updatedAt = fs.statSync(BOOKMARKS_FILE).mtime.toISOString();
+      } catch {
+        updatedAt = '';
+      }
+    }
+
+    const normalized = normalizeBookmarksPayload(data);
+    return { bookmarks: normalized.bookmarks, updatedAt };
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return { bookmarks: [], updatedAt: '' };
+    throw e;
+  }
+}
+
+function writeBookmarksAtomic(bookmarks) {
+  const dir = path.dirname(BOOKMARKS_FILE);
+  ensureDir(dir, 0o700);
+
+  const payload = { updatedAt: nowIso(), bookmarks };
+  const body = JSON.stringify(payload, null, 2) + '\n';
+
+  const tmp = `${BOOKMARKS_FILE}.tmp.${process.pid}`;
+  fs.writeFileSync(tmp, body, { encoding: 'utf8', mode: 0o600 });
+  fs.renameSync(tmp, BOOKMARKS_FILE);
+  fs.chmodSync(BOOKMARKS_FILE, 0o600);
 }
 
 function decodeHtmlEntities(s) {
@@ -2866,14 +2970,40 @@ async function getTradingResearchSnapshot(force) {
   return p;
 }
 
-
-
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
       sendJson(res, 200, { ok: true, now: nowIso() });
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/bookmarks') {
+      const { bookmarks, updatedAt } = readBookmarksFromDisk();
+      sendJson(res, 200, { ok: true, bookmarks, updatedAt });
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/bookmarks/update') {
+      const raw = await readBody(req);
+      let body;
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        jsonError(res, 400, 'invalid json');
+        return;
+      }
+
+      const normalized = normalizeBookmarksPayload(body);
+      if (!normalized.ok) {
+        const count = Number.isFinite(normalized.invalidRows) ? normalized.invalidRows : 0;
+        jsonError(res, 400, count ? `invalid bookmarks (${count} invalid rows)` : normalized.error || 'invalid bookmarks');
+        return;
+      }
+
+      writeBookmarksAtomic(normalized.bookmarks);
+      sendJson(res, 200, { ok: true, saved: normalized.bookmarks.length, updatedAt: nowIso() });
       return;
     }
 

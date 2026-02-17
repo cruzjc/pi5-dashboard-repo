@@ -13,6 +13,126 @@
   </div>
 </section>
 
+<section class='bookmarks'>
+  <header class='bookmarks-head'>
+    <div class='bookmarks-copy'>
+      <h2>Bookmarks</h2>
+      <p>Quick links.</p>
+    </div>
+
+    <div class='bookmarks-actions'>
+      @if (editingBookmarks()) {
+        <button class='mini ghost' type='button' (click)='addDraftBookmark()' [disabled]='bookmarksSaving()'>
+          Add
+        </button>
+        <button class='mini primary' type='button' (click)='saveBookmarks()' [disabled]='!canSaveBookmarks()'>
+          @if (bookmarksSaving()) { Saving... } @else { Save }
+        </button>
+        <button class='mini ghost' type='button' (click)='cancelEditingBookmarks()' [disabled]='bookmarksSaving()'>
+          Cancel
+        </button>
+      } @else {
+        <span class='bookmarks-updated'>Updated {{ bookmarksUpdatedAtLabel() }}</span>
+        <button class='mini ghost' type='button' (click)='refreshBookmarks()' [disabled]='bookmarksLoading()'>
+          @if (bookmarksLoading()) { Loading... } @else { Refresh }
+        </button>
+        <button class='mini primary' type='button' (click)='startEditingBookmarks()'>Edit</button>
+      }
+    </div>
+  </header>
+
+  @if (bookmarksError()) {
+    <p class='bookmarks-error'>{{ bookmarksError() }}</p>
+  }
+
+  <div class='strip'>
+    <div class='tile bookmarks-tile'>
+      @if (editingBookmarks()) {
+        <p class='hint'>
+          Title + URL required. URLs must start with <code>http://</code> or <code>https://</code>.
+        </p>
+
+        @if (draftSummary().invalidRows > 0) {
+          <p class='warn'>Some rows are invalid. Fix them to enable Save.</p>
+        }
+
+        <div class='bookmark-editor'>
+          @for (row of draftBookmarks(); track $index; let i = $index) {
+            <div class='bookmark-row' [class.invalid]='!isDraftRowValid(row)' [class.blank]='isDraftRowBlank(row)'>
+              <input
+                class='input'
+                type='text'
+                placeholder='Title'
+                [value]='row.title'
+                (input)='onDraftInput(i, "title", $event)'
+                [disabled]='bookmarksSaving()'
+              />
+              <input
+                class='input url'
+                type='url'
+                placeholder='https://...'
+                [value]='row.url'
+                (input)='onDraftInput(i, "url", $event)'
+                [disabled]='bookmarksSaving()'
+              />
+              <input
+                class='input'
+                type='text'
+                placeholder='Description (optional)'
+                [value]='row.description'
+                (input)='onDraftInput(i, "description", $event)'
+                [disabled]='bookmarksSaving()'
+              />
+
+              <div class='row-actions'>
+                <button
+                  class='mini ghost'
+                  type='button'
+                  (click)='moveDraftBookmark(i, -1)'
+                  [disabled]='bookmarksSaving() || i === 0'
+                >
+                  Up
+                </button>
+                <button
+                  class='mini ghost'
+                  type='button'
+                  (click)='moveDraftBookmark(i, 1)'
+                  [disabled]='bookmarksSaving() || i === draftBookmarks().length - 1'
+                >
+                  Down
+                </button>
+                <button
+                  class='mini danger'
+                  type='button'
+                  (click)='removeDraftBookmark(i)'
+                  [disabled]='bookmarksSaving()'
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (bookmarksLoading() && !bookmarks().length) {
+        <p>Loading bookmarks...</p>
+      } @else if (!bookmarks().length) {
+        <p>No bookmarks yet. Click <strong>Edit</strong> to add some.</p>
+      } @else {
+        <div class='bookmark-grid'>
+          @for (bookmark of bookmarks(); track $index) {
+            <a class='bookmark' [href]='bookmark.url' target='_blank' rel='noopener noreferrer'>
+              <span class='bookmark-title'>{{ bookmark.title }}</span>
+              @if (bookmark.description) {
+                <span class='bookmark-desc'>{{ bookmark.description }}</span>
+              }
+            </a>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</section>
+
 <section class='modules'>
   <header class='modules-head'>
     <h2>Modules</h2>

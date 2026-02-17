@@ -126,6 +126,191 @@ h1 {
   font-family: 'IBM Plex Mono', monospace;
 }
 
+.bookmarks {
+  margin-top: 1rem;
+}
+
+.bookmarks-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.bookmarks-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.bookmarks-head h2 {
+  margin: 0;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.bookmarks-head p {
+  margin: 0;
+  color: #bdd1ec;
+}
+
+.bookmarks-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.bookmarks-updated {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  opacity: 0.85;
+  color: #bdd1ec;
+}
+
+.mini {
+  appearance: none;
+  border: 1px solid rgba(119, 161, 196, 0.45);
+  background: rgba(9, 14, 24, 0.65);
+  color: #eaf3ff;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.mini.primary {
+  color: #07141d;
+  border-color: rgba(125, 255, 204, 0.7);
+  background: linear-gradient(120deg, #7ce9ff, #7dffcc);
+}
+
+.mini.ghost {
+  background: rgba(9, 14, 24, 0.35);
+}
+
+.mini.danger {
+  border-color: rgba(255, 131, 131, 0.55);
+  color: #ffd2d2;
+  background: rgba(26, 9, 12, 0.55);
+}
+
+.mini:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.bookmarks-error {
+  margin: 0.6rem 0 0;
+  color: #ffb4a8;
+}
+
+.bookmarks-tile {
+  grid-column: 1 / -1;
+}
+
+.bookmarks-tile .hint {
+  margin: 0;
+  color: #bdd1ec;
+  font-size: 0.88rem;
+}
+
+.bookmarks-tile .hint code {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.bookmarks-tile .warn {
+  margin: 0.55rem 0 0;
+  color: #ffd08a;
+}
+
+.bookmark-editor {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.bookmark-row {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr 1.1fr auto;
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.65rem;
+  border-radius: 14px;
+  border: 1px solid rgba(91, 121, 147, 0.36);
+  background: rgba(5, 9, 15, 0.45);
+}
+
+.bookmark-row.invalid {
+  border-color: rgba(255, 193, 124, 0.55);
+}
+
+.bookmark-row.blank {
+  opacity: 0.7;
+}
+
+.input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(119, 161, 196, 0.45);
+  background: rgba(9, 14, 24, 0.65);
+  color: #eaf3ff;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.9rem;
+}
+
+.input.url {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.input:disabled {
+  opacity: 0.65;
+}
+
+.row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.bookmark-grid {
+  margin-top: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.bookmark {
+  display: grid;
+  gap: 0.25rem;
+  border-radius: 14px;
+  border: 1px solid rgba(119, 161, 196, 0.4);
+  background: rgba(9, 14, 24, 0.55);
+  padding: 0.75rem 0.85rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.bookmark:hover {
+  transform: translateY(-1px);
+  border-color: rgba(125, 255, 204, 0.42);
+}
+
+.bookmark-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.98rem;
+  color: #eaf3ff;
+}
+
+.bookmark-desc {
+  font-size: 0.86rem;
+  color: #bdd1ec;
+  line-height: 1.35;
+}
+
 .modules {
   margin-top: 1.15rem;
 }
@@ -215,6 +400,14 @@ h1 {
 
   .strip {
     grid-template-columns: 1fr;
+  }
+
+  .bookmark-row {
+    grid-template-columns: 1fr;
+  }
+
+  .row-actions {
+    justify-content: flex-start;
   }
 }
 
