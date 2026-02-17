@@ -1,0 +1,32 @@
+<section class='hero'>
+  <p class='eyebrow'>Legacy Migration</p>
+
+  <div class='title-row'>
+    <h1>GitHub Waffle</h1>
+    <div class='actions'>
+      <a [href]='profileUrl()' target='_blank' rel='noreferrer'>Open Profile</a>
+    </div>
+  </div>
+
+  <p class='lead'>
+    Migrated from the old Pi Angular portal: a GitHub contribution waffle chart for
+    <code>{{ username() }}</code>.
+  </p>
+
+  <div class='links'>
+    <a routerLink='/'>Home</a>
+    <a routerLink='/config'>Config</a>
+  </div>
+</section>
+
+<section class='card'>
+  <h2>Contribution Chart</h2>
+
+  <div class='chart-wrap'>
+    <img [src]='chartUrl()' [alt]="'GitHub contribution chart for ' + username()" loading='lazy' />
+  </div>
+
+  <p class='muted'>
+    Source: <a [href]='chartUrl()' target='_blank' rel='noreferrer'>ghchart.rshah.org</a>
+  </p>
+</section>

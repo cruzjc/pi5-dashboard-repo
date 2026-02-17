@@ -19,6 +19,12 @@ export const SECTIONS: LegacySection[] = [
     sources: ['/api/games/briefing', '/api/games/briefing/refresh', '/api/audio/*']
   },
   {
+    slug: 'github-waffle',
+    title: 'GitHub Waffle',
+    summary: 'Legacy GitHub contribution waffle chart from the Pi2 Angular portal.',
+    sources: ['https://ghchart.rshah.org/00ff41/cruzjc', 'https://github.com/cruzjc']
+  },
+  {
     slug: 'podcast-videos',
     title: 'Podcast Videos',
     summary:

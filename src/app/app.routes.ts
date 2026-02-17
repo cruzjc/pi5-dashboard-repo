@@ -5,6 +5,7 @@ import { ConfigComponent } from './config.component';
 import { DashboardComponent } from './dashboard.component';
 import { NewsSummaryComponent } from './news-summary.component';
 import { GameBriefingComponent } from './game-briefing.component';
+import { GithubWaffleComponent } from './github-waffle.component';
 import { PodcastVideosComponent } from './podcast-videos.component';
 import { SectionComponent } from './section.component';
 import { TodoComponent } from './todo.component';
@@ -41,6 +42,11 @@ export const routes: Routes = [
     path: 'section/game-briefing',
     component: GameBriefingComponent,
     title: 'Game Briefing'
+  },
+  {
+    path: 'section/github-waffle',
+    component: GithubWaffleComponent,
+    title: 'GitHub Waffle'
   },
   {
     path: 'section/podcast-videos',
