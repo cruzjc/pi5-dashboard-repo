@@ -26,6 +26,42 @@ export const SECTIONS: LegacySection[] = [
     sources: ['/api/research-papers/briefing', '/api/research-papers/briefing/refresh', '/api/audio/*']
   },
   {
+    slug: 'codex-cli',
+    title: 'ChatGPT Codex CLI',
+    summary:
+      'Interactive browser terminal for Codex CLI with browser auth, persona composer, and narrated CLI summaries.',
+    sources: [
+      '/api/ai-cli/session/codex',
+      '/api/ai-cli/session/codex/start',
+      '/api/ai-cli/session/codex/persona/send',
+      '/api/ai-cli/ws?provider=codex&channel=main'
+    ]
+  },
+  {
+    slug: 'claude-cli',
+    title: 'Claude Code CLI',
+    summary:
+      'Interactive browser terminal for Claude Code with browser auth, persona composer, and narrated CLI summaries.',
+    sources: [
+      '/api/ai-cli/session/claude',
+      '/api/ai-cli/session/claude/start',
+      '/api/ai-cli/session/claude/persona/send',
+      '/api/ai-cli/ws?provider=claude&channel=main'
+    ]
+  },
+  {
+    slug: 'gemini-cli',
+    title: 'Gemini Code CLI',
+    summary:
+      'Interactive browser terminal for Gemini Code CLI with YOLO-mode sessions, persona composer, and narrated summaries.',
+    sources: [
+      '/api/ai-cli/session/gemini',
+      '/api/ai-cli/session/gemini/start',
+      '/api/ai-cli/session/gemini/persona/send',
+      '/api/ai-cli/ws?provider=gemini&channel=main'
+    ]
+  },
+  {
     slug: 'github-waffle',
     title: 'GitHub Waffle',
     summary: 'Legacy GitHub contribution waffle chart from the Pi2 Angular portal.',

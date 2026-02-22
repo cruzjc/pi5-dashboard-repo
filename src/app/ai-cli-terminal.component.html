@@ -1,0 +1,266 @@
+<section class='hero'>
+  <div class='copy'>
+    <p class='eyebrow'>AI CLI</p>
+    <h1>{{ providerCopy.title }}</h1>
+    <p class='lead'>{{ providerCopy.subtitle }}</p>
+  </div>
+
+  <div class='status-panel'>
+    <div class='row'>
+      <span class='k'>Provider</span>
+      <span class='v'>{{ providerId }}</span>
+    </div>
+    <div class='row'>
+      <span class='k'>Version</span>
+      <span class='v mono'>{{ providerVersion() }}</span>
+    </div>
+    <div class='row'>
+      <span class='k'>Terminal</span>
+      <span class='v'>{{ mainConnectionLabel() }}</span>
+    </div>
+    <div class='row'>
+      <span class='k'>Auth</span>
+      <span class='v badge' [class.good]='authStatusClass() === "good"' [class.warn]='authStatusClass() === "warn"' [class.bad]='authStatusClass() === "bad"'>
+        {{ authStatusLabel() }}
+      </span>
+    </div>
+  </div>
+</section>
+
+@if (toast()) {
+  <p class='toast'>{{ toast() }}</p>
+}
+
+@if (error()) {
+  <p class='error-banner'>{{ error() }}</p>
+}
+
+<section class='warning'>
+  <p>
+    <strong>Full-access mode is locked on for this MVP.</strong>
+    Commands can modify files under <code>{{ provider()?.access?.homeDir || '/home/jeanclydecruz' }}</code> and no permission prompts are shown in the dashboard UI.
+  </p>
+</section>
+
+<section class='grid'>
+  <div class='card controls'>
+    <header>
+      <h2>Session Controls</h2>
+      <p>One persistent live session per provider. Reconnects after page refresh.</p>
+    </header>
+
+    <div class='button-row'>
+      <button class='primary' type='button' (click)='startSession()' [disabled]='actionBusy() || isMainRunning()'>Start Session</button>
+      <button class='ghost' type='button' (click)='restartSession()' [disabled]='actionBusy() || !isMainRunning()'>Restart</button>
+      <button class='danger' type='button' (click)='stopSession()' [disabled]='actionBusy() || !isMainRunning() || isMainStopping()'>
+        @if (isMainStopping()) { Stopping... } @else { Stop }
+      </button>
+      <button class='ghost' type='button' (click)='refreshStatus()' [disabled]='actionBusy() || loading()'>Refresh Status</button>
+      <button class='ghost' type='button' (click)='clearTerminalView()'>Clear View</button>
+    </div>
+
+    <div class='meta-grid'>
+      <div class='meta'>
+        <span class='k'>Workspace</span>
+        <code class='v path'>{{ workspacePath() }}</code>
+        <button class='mini ghost' type='button' (click)='copyWorkspace()'>Copy</button>
+      </div>
+      <div class='meta'>
+        <span class='k'>Shared Repos</span>
+        <code class='v path'>{{ sharedReposPath() }}</code>
+        <button class='mini ghost' type='button' (click)='copySharedRepos()'>Copy</button>
+      </div>
+      <div class='meta'>
+        <span class='k'>PID</span>
+        <span class='v mono'>{{ provider()?.session?.pid ?? '—' }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Started</span>
+        <span class='v'>{{ formattedStartedAt() }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Last Exit</span>
+        <span class='v'>{{ formattedExitedAt() }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Exit Code</span>
+        <span class='v mono'>{{ provider()?.session?.exitCode ?? '—' }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class='card terminal-card'>
+    <header>
+      <h2>Terminal</h2>
+      <p>
+        Raw terminal input is available. Persona mode only applies when using the composer below.
+      </p>
+    </header>
+
+    <div class='terminal-frame'>
+      <div #termHost class='terminal-host' aria-label='AI CLI terminal'></div>
+      @if (!isMainRunning()) {
+        <div class='overlay'>Session not running</div>
+      } @else if (!mainConnected()) {
+        <div class='overlay'>Reconnecting terminal stream...</div>
+      }
+    </div>
+  </div>
+</section>
+
+<section class='grid lower'>
+  <div class='card auth-card'>
+    <header>
+      <h2>Browser Auth</h2>
+      <p>Starts provider login commands and streams device/browser URLs and progress here.</p>
+    </header>
+
+    <div class='button-row'>
+      <button class='primary' type='button' (click)='login()' [disabled]='actionBusy() || isAuthRunning()'>Login</button>
+      <button class='ghost' type='button' (click)='refreshAuthStatus()'>Refresh Auth Status</button>
+      <button class='ghost' type='button' (click)='logout()' [disabled]='provider()?.capabilities?.authLogout === false'>Logout</button>
+      <button class='danger' type='button' (click)='stopAuthJob()' [disabled]='!isAuthRunning()'>Stop Auth Job</button>
+    </div>
+
+    <div class='meta-grid compact'>
+      <div class='meta'>
+        <span class='k'>Auth Stream</span>
+        <span class='v'>{{ authConnectionLabel() }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Detail</span>
+        <span class='v'>{{ provider()?.authStatus?.detail || '—' }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Checked</span>
+        <span class='v'>{{ formattedAuthCheckedAt() }}</span>
+      </div>
+    </div>
+
+    @if (authHints().length) {
+      <div class='auth-hints'>
+        <h3>Auth Hints</h3>
+        <ul>
+          @for (hint of authHints(); track $index) {
+            <li>
+              @if (authHintUrl(hint)) {
+                <a [href]='authHintUrl(hint)' target='_blank' rel='noopener noreferrer'>{{ authHintLabel(hint) }}</a>
+              } @else {
+                <span>{{ authHintLabel(hint) }}</span>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <pre class='auth-log'>{{ authLog() || 'No auth output yet.' }}</pre>
+  </div>
+
+  <div class='card persona-card'>
+    <header>
+      <h2>Persona Composer</h2>
+      <p>Uses the same persona set as the briefing features, then injects a wrapped prompt into the running terminal session.</p>
+    </header>
+
+    <div class='persona-controls'>
+      <div class='mode-toggle' role='group' aria-label='Persona mode'>
+        <button
+          type='button'
+          class='mini'
+          [class.active]='composerMode() === "selected"'
+          (click)='setComposerMode("selected")'
+        >
+          Selected
+        </button>
+        <button
+          type='button'
+          class='mini'
+          [class.active]='composerMode() === "random"'
+          (click)='setComposerMode("random")'
+        >
+          Random
+        </button>
+      </div>
+
+      <label class='persona-select'>
+        <span>Persona</span>
+        <select [value]='selectedPersonaId()' (change)='onPersonaSelect($event)' [disabled]='personas().length === 0'>
+          @for (p of personas(); track trackPersona($index, p)) {
+            <option [value]='p.id'>{{ p.name }} @if (p.voiceId) { ({{ p.voiceId }}) }</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (composerError()) {
+      <p class='local-error'>{{ composerError() }}</p>
+    }
+
+    <textarea
+      class='composer'
+      rows='7'
+      [value]='composerText()'
+      (input)='onComposerInput($event)'
+      placeholder='Ask the provider to work in /home/jeanclydecruz/shared-repos/... (terminal remains raw if you type directly into it).'
+    ></textarea>
+
+    <div class='button-row'>
+      <button class='primary' type='button' (click)='sendViaPersona()' [disabled]='!canSendPersona()'>
+        @if (composerBusy()) { Sending... } @else { {{ personaButtonLabel() }} }
+      </button>
+      <button class='ghost' type='button' (click)='narrateLast()' [disabled]='narrationBusy()'>
+        @if (narrationBusy()) { Narrating... } @else { Narrate Last Summary }
+      </button>
+    </div>
+
+    <div class='meta-grid compact'>
+      <div class='meta'>
+        <span class='k'>Last Persona Send</span>
+        <span class='v'>{{ lastComposerPersona() || provider()?.lastComposerInteraction?.persona?.name || '—' }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Selected Persona</span>
+        <span class='v'>{{ selectedPersonaLabel() }}</span>
+      </div>
+    </div>
+
+    <section class='narration'>
+      <h3>Narration</h3>
+
+      @if (narrationError()) {
+        <p class='local-error'>{{ narrationError() }}</p>
+      }
+
+      @if (hasNarrationAudio()) {
+        <audio controls [src]='narrationAudioUrl()'></audio>
+      } @else {
+        <p class='hint'>No audio yet. Summary generation works without audio; Inworld keys are required for TTS output.</p>
+      }
+
+      <div class='meta-grid compact'>
+        <div class='meta'>
+          <span class='k'>Narrator</span>
+          <span class='v'>{{ narrationPersona() || '—' }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Generated</span>
+          <span class='v'>{{ formattedNarrationAt() }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Source Chars</span>
+          <span class='v mono'>{{ narrationSourceChars() ?? '—' }}</span>
+        </div>
+      </div>
+
+      @if (narrationSummary()) {
+        <pre class='summary'>{{ narrationSummary() }}</pre>
+      }
+    </section>
+  </div>
+</section>
+
+<nav class='footer-nav'>
+  <a [routerLink]="['/']">Home</a>
+  <a [routerLink]="['/config']">Config</a>
+</nav>

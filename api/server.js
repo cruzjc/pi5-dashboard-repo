@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { createAiCliFeature } = require('./ai-cli');
 
 const HOST = process.env.PI5_DASHBOARD_API_HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PI5_DASHBOARD_API_PORT || '8092', 10);
@@ -2969,10 +2970,29 @@ async function getTradingResearchSnapshot(force) {
   inFlightTradingResearchByMode.set(key, p);
   return p;
 }
+const aiCliFeature = createAiCliFeature({
+  DATA_DIR,
+  AUDIO_DIR,
+  DEFAULT_PERSONAS,
+  ensureDir,
+  nowIso,
+  sendJson,
+  jsonError,
+  readBody,
+  readEnvMap,
+  callGemini,
+  generateInworldAudio
+});
+
 
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    if (url.pathname.startsWith('/api/ai-cli')) {
+      const handled = await aiCliFeature.handleHttp(req, res, url);
+      if (handled) return;
+    }
+
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
       sendJson(res, 200, { ok: true, now: nowIso() });
@@ -3149,6 +3169,20 @@ const server = http.createServer(async (req, res) => {
     jsonError(res, 404, 'not found');
   } catch (e) {
     jsonError(res, 500, e instanceof Error ? e.message : String(e));
+  }
+});
+
+server.on('upgrade', (req, socket, head) => {
+  try {
+    if (aiCliFeature.handleUpgrade(req, socket, head)) return;
+  } catch {
+    // ignore and fall through to destroy the socket
+  }
+
+  try {
+    socket.destroy();
+  } catch {
+    // ignore
   }
 });
 

@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { BitcoinLotteryComponent } from './bitcoin-lottery.component';
+import { AiCliTerminalComponent } from './ai-cli-terminal.component';
 import { ConfigComponent } from './config.component';
 import { DashboardComponent } from './dashboard.component';
 import { NewsSummaryComponent } from './news-summary.component';
@@ -68,6 +69,24 @@ export const routes: Routes = [
     path: 'section/trading-research',
     component: TradingResearchComponent,
     title: 'Trading Research'
+  },
+  {
+    path: 'section/codex-cli',
+    component: AiCliTerminalComponent,
+    data: { provider: 'codex' },
+    title: 'ChatGPT Codex CLI'
+  },
+  {
+    path: 'section/claude-cli',
+    component: AiCliTerminalComponent,
+    data: { provider: 'claude' },
+    title: 'Claude Code CLI'
+  },
+  {
+    path: 'section/gemini-cli',
+    component: AiCliTerminalComponent,
+    data: { provider: 'gemini' },
+    title: 'Gemini Code CLI'
   },
   {
     path: 'section/:slug',
