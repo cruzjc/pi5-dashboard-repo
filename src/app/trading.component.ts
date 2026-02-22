@@ -29,7 +29,7 @@ type StrategyEntry = {
   notes?: string;
 };
 
-const PI2_TRADING_STATUS_URL = '/pi2/api/trading/status';
+const TRADING_STATUS_URL = '/api/trading/status';
 
 const STRATEGIES: StrategyEntry[] = [
   {
@@ -38,7 +38,7 @@ const STRATEGIES: StrategyEntry[] = [
     timing: 'Always-on service',
     schedule: [],
     details: [
-      'systemd: alpaca-trader.service (Pi2)',
+      'systemd: alpaca-trader.service',
       'exec: ~/projects/trader/.venv/bin/python ~/projects/trader/alpaca_ai_trader.py --config ~/projects/trader/config.yaml',
       'env: ~/.trader-config.env',
       'flags: alpaca_paper=false, live_trading=true, dry_run=false',
@@ -53,7 +53,7 @@ const STRATEGIES: StrategyEntry[] = [
     timing: 'Always-on service',
     schedule: [],
     details: [
-      'systemd: qqq0dte.service (Pi2)',
+      'systemd: qqq0dte.service',
       'exec: ~/projects/0DTE-QQQ-Calls/venv/bin/python -u src/main.py',
       'env: ~/projects/0DTE-QQQ-Calls/.env',
       'paper: ALPACA_PAPER=true',
@@ -96,14 +96,15 @@ const STRATEGIES: StrategyEntry[] = [
     notes: 'Live gating is controlled inside the strategy + env flags.'
   },
   {
-    name: 'robinhood-researcher',
+    name: 'pi5-trading-research-agent',
     kind: 'job',
     timing: 'Daily at 19:00 (cron)',
     schedule: ['0 19 * * *'],
     details: [
-      'cwd: ~/robinhood-researcher',
-      'run: python enhanced_researcher.py',
-      'output: ~/altportal/api/research.json'
+      'cwd: ~/pi5-dashboard-repo/trading-research',
+      'run: ~/.venv-trading-research/bin/python enhanced_researcher.py',
+      'env: PI5_DASHBOARD_ENV_PATH, TRADING_RESEARCH_DATA_DIR',
+      'output: ~/.pi5-dashboard-data/trading/research.json'
     ]
   }
 ];
@@ -158,7 +159,7 @@ export class TradingComponent implements OnInit, OnDestroy {
     this.error.set('');
 
     try {
-      const r = await fetch(PI2_TRADING_STATUS_URL, { cache: 'no-store' });
+      const r = await fetch(TRADING_STATUS_URL, { cache: 'no-store' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const data = (await r.json()) as TradingStatus;
       if (data && typeof data.error === 'string' && data.error) {

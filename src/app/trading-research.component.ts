@@ -107,6 +107,25 @@ type JournalEntry = {
   };
 };
 
+type AutomationState = {
+  active?: boolean;
+  service?: string;
+  enabled?: string;
+  mode?: string;
+};
+
+type AutomatedTrade = {
+  ticker?: string;
+  score?: number | null;
+  direction?: string;
+  status?: string;
+  entryPrice?: number | null;
+  targetPrice?: number | null;
+  stopPrice?: number | null;
+  positionQty?: number | null;
+  openOrderCount?: number | null;
+};
+
 type TradingResearchSnapshot = {
   generatedAt?: string;
   sourceBaseUrl?: string;
@@ -121,6 +140,8 @@ type TradingResearchSnapshot = {
     openPositions?: number | null;
     openOrders?: number | null;
   };
+  automation?: AutomationState;
+  automatedTrades?: AutomatedTrade[];
   strategyStatus?: Record<string, string>;
   openclaw?: {
     pcOnline?: boolean | null;
@@ -165,6 +186,8 @@ export class TradingResearchComponent implements OnInit {
   protected readonly oversoldPlays = computed(() => this.research()?.categories?.oversold_plays ?? []);
 
   protected readonly journalEntries = computed(() => this.snapshot()?.journalEntries ?? []);
+  protected readonly automation = computed(() => this.snapshot()?.automation ?? null);
+  protected readonly automatedTrades = computed(() => this.snapshot()?.automatedTrades ?? []);
 
   protected readonly generatedAtLabel = computed(() => formatDateTime(this.snapshot()?.generatedAt));
   protected readonly scanAtLabel = computed(() => formatDateTime(this.research()?.generated_at));
@@ -232,6 +255,17 @@ export class TradingResearchComponent implements OnInit {
     if (['enabled', 'active', 'online', 'running'].includes(raw)) return 'success';
     if (['disabled', 'inactive', 'stopped', 'sleeping', 'unknown'].includes(raw)) return 'warning';
     return 'accent';
+  }
+
+  protected automatedTradeStatusClass(value: string | null | undefined): string {
+    const raw = String(value || '')
+      .trim()
+      .toLowerCase();
+    if (['active', 'live', 'filled'].includes(raw)) return 'success';
+    if (['queued', 'pending', 'submitted', 'open'].includes(raw)) return 'accent';
+    if (['watching', 'armed', 'monitoring'].includes(raw)) return 'warning';
+    if (['inactive', 'stopped', 'disabled'].includes(raw)) return 'danger';
+    return 'neutral';
   }
 
   protected toneClass(value: string | null | undefined): string {

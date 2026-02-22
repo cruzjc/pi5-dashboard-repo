@@ -83,8 +83,8 @@ export const SECTIONS: LegacySection[] = [
   {
     slug: 'trading',
     title: 'Trading',
-    summary: 'Alpaca account snapshot plus Pi2 strategy inventory (systemd + cron).',
-    sources: ['http://192.168.4.12/api/trading/status', 'http://portal.pi2/ui/trading.html']
+    summary: 'Pi3-local Alpaca account snapshot plus local strategy inventory (systemd + cron).',
+    sources: ['/api/trading/status', '/api/trading-research']
   },
   {
     slug: 'trading-research',

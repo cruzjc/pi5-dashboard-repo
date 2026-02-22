@@ -246,6 +246,65 @@
   </article>
 
   <article class='card wide'>
+    <h2>Automated Trades</h2>
+    <p class='muted'>
+      Shows the active automation state plus current ticker-level targets and stops used for automated execution.
+    </p>
+
+    <div class='automation-strip'>
+      <span [class]="'badge ' + (automation()?.active ? 'success' : 'danger')">
+        {{ automation()?.active ? 'Automation Active' : 'Automation Inactive' }}
+      </span>
+      <span>Service <code>alpaca-trader</code>: <strong>{{ automation()?.service || 'unknown' }}</strong></span>
+      <span>Enabled: <strong>{{ automation()?.enabled || 'unknown' }}</strong></span>
+      <span>Mode: <strong>{{ automation()?.mode || 'unknown' }}</strong></span>
+    </div>
+
+    <div class='table-wrapper'>
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Status</th>
+            <th>Direction</th>
+            <th class='num'>Entry</th>
+            <th class='num'>Target</th>
+            <th class='num'>Stop</th>
+            <th class='num'>Pos Qty</th>
+            <th class='num'>Open Orders</th>
+            <th class='num'>Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (automatedTrades().length) {
+            @for (trade of automatedTrades(); track trade.ticker) {
+              <tr>
+                <td><strong>{{ trade.ticker || '—' }}</strong></td>
+                <td>
+                  <span [class]="'badge ' + automatedTradeStatusClass(trade.status)">
+                    {{ trade.status || 'unknown' }}
+                  </span>
+                </td>
+                <td><span [class]="'badge ' + directionClass(trade.direction)">{{ trade.direction || '—' }}</span></td>
+                <td class='num'>{{ money(trade.entryPrice) }}</td>
+                <td class='num'>{{ money(trade.targetPrice) }}</td>
+                <td class='num'>{{ money(trade.stopPrice) }}</td>
+                <td class='num'>{{ trade.positionQty != null ? trade.positionQty : '—' }}</td>
+                <td class='num'>{{ trade.openOrderCount ?? '—' }}</td>
+                <td class='num'>{{ trade.score != null ? trade.score.toFixed(1) : '—' }}</td>
+              </tr>
+            }
+          } @else {
+            <tr>
+              <td colspan='9' class='empty'>No automated trades derived from the current research snapshot.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <article class='card wide'>
     <h2>Score Guide</h2>
     <div class='score-guide'>
       <div class='score-item excellent'><strong>6+ Excellent</strong><br />Multiple strong catalysts. High conviction.</div>

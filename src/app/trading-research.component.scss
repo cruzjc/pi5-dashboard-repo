@@ -263,6 +263,10 @@ td {
   vertical-align: top;
 }
 
+.num {
+  text-align: right;
+}
+
 th {
   color: #9cb4ce;
   font-weight: 500;
@@ -311,6 +315,22 @@ th {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.9rem;
+}
+
+.automation-strip {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.automation-strip span {
+  border: 1px solid rgba(119, 161, 196, 0.3);
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  background: rgba(6, 14, 26, 0.45);
+  font-size: 0.8rem;
 }
 
 .score-guide {

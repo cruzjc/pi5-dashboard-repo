@@ -4,7 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { createAiCliFeature } = require('./ai-cli');
 
 const HOST = process.env.PI5_DASHBOARD_API_HOST || '127.0.0.1';
@@ -2573,6 +2573,103 @@ function buildScannerCandidatesFromResearch(research) {
   return out;
 }
 
+function firstFiniteValue(...values) {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function normalizeSignalDirection(rawDirection, rawFallbackDirection) {
+  const primary = String(rawDirection || '')
+    .trim()
+    .toUpperCase();
+  const fallback = String(rawFallbackDirection || '')
+    .trim()
+    .toUpperCase();
+
+  if (primary === 'STRADDLE' || primary === 'NEUTRAL' || primary === '') {
+    if (fallback === 'CALL' || fallback === 'PUT') return fallback;
+  }
+  return primary || fallback || 'NEUTRAL';
+}
+
+function buildAutomatedTradesFromResearch(research, positions, openOrders, runtimeStatus) {
+  const picks = Array.isArray(research?.top_picks) ? research.top_picks : [];
+  if (!picks.length) return [];
+
+  const positionMap = new Map();
+  for (const position of Array.isArray(positions) ? positions : []) {
+    const symbol = String(position?.symbol || '')
+      .trim()
+      .toUpperCase();
+    if (!symbol) continue;
+    positionMap.set(symbol, position);
+  }
+
+  const orderMap = new Map();
+  for (const order of Array.isArray(openOrders) ? openOrders : []) {
+    const symbol = String(order?.symbol || '')
+      .trim()
+      .toUpperCase();
+    if (!symbol) continue;
+    const current = orderMap.get(symbol) || [];
+    current.push(order);
+    orderMap.set(symbol, current);
+  }
+
+  const serviceState = String(runtimeStatus?.services?.alpacaTrader?.active || '')
+    .trim()
+    .toLowerCase();
+  const automationActive = serviceState === 'active' || serviceState === 'running';
+
+  const rows = [];
+
+  for (const pick of picks.slice(0, 12)) {
+    const ticker = String(pick?.ticker || '')
+      .trim()
+      .toUpperCase();
+    if (!ticker) continue;
+
+    const tradeIdea = pick?.trade_idea && typeof pick.trade_idea === 'object' ? pick.trade_idea : {};
+    const entryExit = tradeIdea?.entry_exit && typeof tradeIdea.entry_exit === 'object' ? tradeIdea.entry_exit : {};
+
+    const direction = normalizeSignalDirection(tradeIdea?.direction, entryExit?.direction);
+    const score = parseNumberLoose(pick?.score);
+    const entryPrice = firstFiniteValue(parseNumberLoose(entryExit?.stock_entry), parseNumberLoose(pick?.price));
+    const position = positionMap.get(ticker) || null;
+    const orders = orderMap.get(ticker) || [];
+
+    const orderTarget = firstFiniteValue(
+      ...orders.map((order) => parseNumberLoose(order?.limitPrice)),
+      ...orders.map((order) => parseNumberLoose(order?.takeProfitPrice))
+    );
+    const orderStop = firstFiniteValue(...orders.map((order) => parseNumberLoose(order?.stopPrice)));
+
+    const targetPrice = firstFiniteValue(orderTarget, parseNumberLoose(entryExit?.stock_target));
+    const stopPrice = firstFiniteValue(orderStop, parseNumberLoose(entryExit?.stock_stop));
+
+    let status = 'inactive';
+    if (position) status = 'active';
+    else if (orders.length) status = 'queued';
+    else if (automationActive) status = 'watching';
+
+    rows.push({
+      ticker,
+      score,
+      direction,
+      status,
+      entryPrice,
+      targetPrice,
+      stopPrice,
+      positionQty: position ? parseNumberLoose(position?.qty) : null,
+      openOrderCount: orders.length
+    });
+  }
+
+  return rows;
+}
+
 function runTradingResearchScript() {
   if (inFlightTradingResearchRun) return inFlightTradingResearchRun;
 
@@ -2700,6 +2797,9 @@ async function fetchAlpacaAccountSnapshot(env) {
         openPositions: null,
         openOrders: null
       },
+      positions: [],
+      openOrders: [],
+      executionMode: 'unknown',
       error: 'missing ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY'
     };
   }
@@ -2761,6 +2861,39 @@ async function fetchAlpacaAccountSnapshot(env) {
     }
 
     if (accountRaw) {
+      const normalizedPositions = (positions || []).map((position) => ({
+        symbol: String(position?.symbol || ''),
+        qty: parseNumberLoose(position?.qty),
+        side: String(position?.side || ''),
+        currentPrice: parseNumberLoose(position?.current_price),
+        avgEntryPrice: parseNumberLoose(position?.avg_entry_price),
+        unrealizedPl: parseNumberLoose(position?.unrealized_pl)
+      }));
+
+      const normalizedOrders = (orders || []).map((order) => {
+        const legs = Array.isArray(order?.legs) ? order.legs : [];
+
+        const takeProfitPrice = firstFiniteValue(
+          ...legs.map((leg) => parseNumberLoose(leg?.limit_price))
+        );
+        const stopPriceFromLegs = firstFiniteValue(
+          ...legs.map((leg) => parseNumberLoose(leg?.stop_price))
+        );
+
+        return {
+          id: String(order?.id || ''),
+          symbol: String(order?.symbol || ''),
+          side: String(order?.side || ''),
+          status: String(order?.status || ''),
+          type: String(order?.type || ''),
+          orderClass: String(order?.order_class || ''),
+          limitPrice: parseNumberLoose(order?.limit_price),
+          stopPrice: firstFiniteValue(parseNumberLoose(order?.stop_price), stopPriceFromLegs),
+          takeProfitPrice,
+          submittedAt: String(order?.submitted_at || order?.created_at || '')
+        };
+      });
+
       return {
         account: {
           cash: parseNumberLoose(accountRaw?.cash),
@@ -2769,6 +2902,9 @@ async function fetchAlpacaAccountSnapshot(env) {
           openPositions: positions ? positions.length : null,
           openOrders: orders ? orders.length : null
         },
+        positions: normalizedPositions,
+        openOrders: normalizedOrders,
+        executionMode: base.includes('paper-api') ? 'paper' : 'live',
         error: errors.length ? errors.join('; ') : ''
       };
     }
@@ -2784,7 +2920,179 @@ async function fetchAlpacaAccountSnapshot(env) {
       openPositions: null,
       openOrders: null
     },
+    positions: [],
+    openOrders: [],
+    executionMode: 'unknown',
     error: baseErrors.join(' | ')
+  };
+}
+
+function systemctlState(unit) {
+  const result = spawnSync('systemctl', ['is-active', unit], {
+    encoding: 'utf8',
+    timeout: 4000
+  });
+
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim().toLowerCase();
+  if (!output) return 'unknown';
+
+  const token = output.split(/\s+/)[0];
+  return token || 'unknown';
+}
+
+function systemctlEnabled(unit) {
+  const result = spawnSync('systemctl', ['is-enabled', unit], {
+    encoding: 'utf8',
+    timeout: 4000
+  });
+
+  const output = `${result.stdout || ''}${result.stderr || ''}`.trim().toLowerCase();
+  if (!output) return 'unknown';
+
+  const token = output.split(/\s+/)[0];
+  return token || 'unknown';
+}
+
+function readUserCrontabLines() {
+  const result = spawnSync('crontab', ['-l'], {
+    encoding: 'utf8',
+    timeout: 4000
+  });
+
+  const stderr = String(result.stderr || '');
+  if (result.status !== 0 && /no crontab for/i.test(stderr)) {
+    return [];
+  }
+
+  return String(result.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+}
+
+function readTradingRuntimeStatus() {
+  const services = {
+    alpacaTrader: {
+      unit: 'alpaca-trader',
+      active: systemctlState('alpaca-trader'),
+      enabled: systemctlEnabled('alpaca-trader')
+    },
+    qqq0dte: {
+      unit: 'qqq0dte',
+      active: systemctlState('qqq0dte'),
+      enabled: systemctlEnabled('qqq0dte')
+    }
+  };
+
+  const cronLines = readUserCrontabLines();
+  const hasLine = (needle) => cronLines.some((line) => line.includes(needle));
+
+  const cron = {
+    entries: cronLines.length,
+    aggressiveOpen: hasLine('cron_aggressive_call_momentum_V1_open.cron.sh'),
+    aggressiveManage: hasLine('cron_aggressive_call_momentum_V1_manage.cron.sh'),
+    tqqqOpen: hasLine('cron_tqqq_sqqq_daily_V3_open.cron.sh'),
+    tqqqManage: hasLine('cron_tqqq_sqqq_daily_V3_manage.cron.sh')
+  };
+
+  return { services, cron };
+}
+
+async function fetchAlpacaTradingStatus(env) {
+  const key =
+    env?.ALPACA_API_KEY_ID || env?.APCA_API_KEY_ID || env?.ALPACA_API_KEY || env?.APCA_API_KEY;
+  const secret =
+    env?.ALPACA_API_SECRET_KEY ||
+    env?.APCA_API_SECRET_KEY ||
+    env?.ALPACA_SECRET_KEY ||
+    env?.APCA_API_SECRET;
+  const explicitBase = String(env?.APCA_API_BASE_URL || '').trim();
+  const baseCandidates = explicitBase
+    ? [explicitBase]
+    : ['https://paper-api.alpaca.markets', 'https://api.alpaca.markets'];
+
+  if (!key || !secret) {
+    return {
+      cash: null,
+      equity: null,
+      dayPL: null,
+      positions: [],
+      error: 'missing ALPACA_API_KEY_ID/ALPACA_API_SECRET_KEY'
+    };
+  }
+
+  const headers = {
+    'APCA-API-KEY-ID': key,
+    'APCA-API-SECRET-KEY': secret
+  };
+
+  const baseErrors = [];
+
+  for (const rawBase of baseCandidates) {
+    const base = String(rawBase || '').replace(/\/+$/, '');
+    if (!base) continue;
+
+    const [accountRes, positionsRes] = await Promise.allSettled([
+      fetchJsonWithTimeout(`${base}/v2/account`, { headers, timeoutMs: 12_000 }),
+      fetchJsonWithTimeout(`${base}/v2/positions`, { headers, timeoutMs: 12_000 })
+    ]);
+
+    const errors = [];
+    const accountRaw =
+      accountRes.status === 'fulfilled' && accountRes.value && typeof accountRes.value === 'object'
+        ? accountRes.value
+        : null;
+    if (!accountRaw) {
+      const reason =
+        accountRes.status === 'rejected'
+          ? accountRes.reason instanceof Error
+            ? accountRes.reason.message
+            : String(accountRes.reason)
+          : 'invalid payload';
+      errors.push(`account: ${reason}`);
+    }
+
+    const positionsRaw =
+      positionsRes.status === 'fulfilled' && Array.isArray(positionsRes.value) ? positionsRes.value : null;
+    if (!positionsRaw) {
+      const reason =
+        positionsRes.status === 'rejected'
+          ? positionsRes.reason instanceof Error
+            ? positionsRes.reason.message
+            : String(positionsRes.reason)
+          : 'invalid payload';
+      errors.push(`positions: ${reason}`);
+    }
+
+    if (accountRaw) {
+      const equity = parseNumberLoose(accountRaw?.equity);
+      const lastEquity = parseNumberLoose(accountRaw?.last_equity);
+
+      return {
+        cash: parseNumberLoose(accountRaw?.cash),
+        equity,
+        dayPL: equity != null && lastEquity != null ? equity - lastEquity : null,
+        positions: (positionsRaw || []).map((p) => ({
+          symbol: String(p?.symbol || ''),
+          qty: parseNumberLoose(p?.qty) ?? 0,
+          current_price: parseNumberLoose(p?.current_price) ?? 0,
+          avg_entry_price: parseNumberLoose(p?.avg_entry_price) ?? 0,
+          unrealized_pl: parseNumberLoose(p?.unrealized_pl) ?? 0,
+          unrealized_plpc: parseNumberLoose(p?.unrealized_plpc) ?? 0
+        })),
+        error: errors.length ? errors.join('; ') : ''
+      };
+    }
+
+    baseErrors.push(`${base}: ${errors.join('; ') || 'request failed'}`);
+  }
+
+  return {
+    cash: null,
+    equity: null,
+    dayPL: null,
+    positions: [],
+    error: baseErrors.join(' | ') || 'unable to fetch account status'
   };
 }
 
@@ -2821,10 +3129,18 @@ async function generateLocalTradingResearchSnapshot(force) {
 
   const topPicks = Array.isArray(research?.top_picks) ? research.top_picks : [];
   const scannerCandidates = buildScannerCandidatesFromResearch(research);
+  const runtimeStatus = readTradingRuntimeStatus();
   const accountInfo = await fetchAlpacaAccountSnapshot(readEnvMap());
   if (accountInfo.error) {
     errors.account = accountInfo.error;
   }
+
+  const automatedTrades = buildAutomatedTradesFromResearch(
+    research,
+    accountInfo.positions,
+    accountInfo.openOrders,
+    runtimeStatus
+  );
 
   const payload = {
     generatedAt: nowIso(),
@@ -2834,7 +3150,19 @@ async function generateLocalTradingResearchSnapshot(force) {
     overviewTopPicks: topPicks.slice(0, 5),
     scannerCandidates,
     account: accountInfo.account,
+    automation: {
+      active:
+        String(runtimeStatus?.services?.alpacaTrader?.active || '')
+          .trim()
+          .toLowerCase() === 'active',
+      service: runtimeStatus?.services?.alpacaTrader?.active || 'unknown',
+      enabled: runtimeStatus?.services?.alpacaTrader?.enabled || 'unknown',
+      mode: accountInfo.executionMode || 'unknown'
+    },
+    automatedTrades,
     strategyStatus: {
+      alpaca_trader_service: runtimeStatus?.services?.alpacaTrader?.active || 'unknown',
+      qqq0dte_service: runtimeStatus?.services?.qqq0dte?.active || 'unknown',
       trading_research_agent: inFlightTradingResearchRun ? 'running' : 'enabled',
       trigger: 'pi5-local cron + on-demand refresh'
     },
@@ -2902,6 +3230,24 @@ async function generatePi2TradingResearchSnapshot() {
 
   const topPicks = Array.isArray(research?.top_picks) ? research.top_picks : [];
   const tradeLog = typeof status?.tradeLog === 'string' ? status.tradeLog : '';
+  const pi2StrategyStatus =
+    status && status.strategyStatus && typeof status.strategyStatus === 'object'
+      ? status.strategyStatus
+      : {};
+  const pi2ServiceState = String(
+    pi2StrategyStatus.alpaca_trader_service ||
+      pi2StrategyStatus.alpacaTrader ||
+      pi2StrategyStatus.alpaca_trader ||
+      'unknown'
+  ).toLowerCase();
+  const pi2RuntimeStub = {
+    services: {
+      alpacaTrader: {
+        active: pi2ServiceState
+      }
+    }
+  };
+  const pi2AutomatedTrades = buildAutomatedTradesFromResearch(research, [], [], pi2RuntimeStub);
 
   const payload = {
     generatedAt: nowIso(),
@@ -2911,10 +3257,20 @@ async function generatePi2TradingResearchSnapshot() {
     overviewTopPicks: topPicks.slice(0, 5),
     scannerCandidates: parseMorningScannerCandidates(tradeLog),
     account: parseAccountSnapshotFromTradeLog(tradeLog),
-    strategyStatus:
-      status && status.strategyStatus && typeof status.strategyStatus === 'object'
-        ? status.strategyStatus
-        : {},
+    automation: {
+      active: ['active', 'running', 'online'].includes(pi2ServiceState),
+      service:
+        String(
+          pi2StrategyStatus.alpaca_trader_service ||
+            pi2StrategyStatus.alpacaTrader ||
+            pi2StrategyStatus.alpaca_trader ||
+            'unknown'
+        ) || 'unknown',
+      enabled: 'unknown',
+      mode: 'unknown'
+    },
+    automatedTrades: pi2AutomatedTrades,
+    strategyStatus: pi2StrategyStatus,
     openclaw: {
       pcOnline: status?.pcOnline ?? null,
       nextWake: status?.nextWake ?? '',
@@ -2922,6 +3278,8 @@ async function generatePi2TradingResearchSnapshot() {
     },
     errors
   };
+
+  return payload;
 }
 
 async function generateTradingResearchSnapshot(force) {
@@ -2970,6 +3328,7 @@ async function getTradingResearchSnapshot(force) {
   inFlightTradingResearchByMode.set(key, p);
   return p;
 }
+
 const aiCliFeature = createAiCliFeature({
   DATA_DIR,
   AUDIO_DIR,
@@ -2984,15 +3343,14 @@ const aiCliFeature = createAiCliFeature({
   generateInworldAudio
 });
 
-
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+
     if (url.pathname.startsWith('/api/ai-cli')) {
       const handled = await aiCliFeature.handleHttp(req, res, url);
       if (handled) return;
     }
-
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
       sendJson(res, 200, { ok: true, now: nowIso() });
@@ -3103,6 +3461,32 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/podcast-videos/refresh') {
       const playlist = await getOrGeneratePodcastVideos(true);
       sendJson(res, 200, playlist);
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/api/trading/status') {
+      const env = readEnvMap();
+      const [account, runtime] = await Promise.all([
+        fetchAlpacaTradingStatus(env),
+        Promise.resolve(readTradingRuntimeStatus())
+      ]);
+
+      const payload = {
+        botRunning: runtime.services.alpacaTrader.active === 'active',
+        cash: account.cash,
+        equity: account.equity,
+        dayPL: account.dayPL,
+        positions: account.positions,
+        lastUpdate: nowIso(),
+        services: runtime.services,
+        cron: runtime.cron
+      };
+
+      if (account.error && payload.cash == null && payload.equity == null) {
+        payload.error = account.error;
+      }
+
+      sendJson(res, 200, payload);
       return;
     }
 
