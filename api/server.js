@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createAiCliFeature } = require('./ai-cli');
+const { createHarnessFeature } = require('./harness');
 
 const HOST = process.env.PI5_DASHBOARD_API_HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PI5_DASHBOARD_API_PORT || '8092', 10);
@@ -3343,12 +3344,31 @@ const aiCliFeature = createAiCliFeature({
   generateInworldAudio
 });
 
+const harnessFeature = createHarnessFeature({
+  DATA_DIR,
+  AUDIO_DIR,
+  DEFAULT_PERSONAS,
+  ensureDir,
+  nowIso,
+  sendJson,
+  jsonError,
+  readBody,
+  readEnvMap,
+  callGemini,
+  generateInworldAudio
+});
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
     if (url.pathname.startsWith('/api/ai-cli')) {
       const handled = await aiCliFeature.handleHttp(req, res, url);
+      if (handled) return;
+    }
+
+    if (url.pathname.startsWith('/api/harness')) {
+      const handled = await harnessFeature.handleHttp(req, res, url);
       if (handled) return;
     }
 
@@ -3559,6 +3579,12 @@ const server = http.createServer(async (req, res) => {
 server.on('upgrade', (req, socket, head) => {
   try {
     if (aiCliFeature.handleUpgrade(req, socket, head)) return;
+  } catch {
+    // ignore and fall through to destroy the socket
+  }
+
+  try {
+    if (harnessFeature.handleUpgrade(req, socket, head)) return;
   } catch {
     // ignore and fall through to destroy the socket
   }

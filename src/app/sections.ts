@@ -62,6 +62,18 @@ export const SECTIONS: LegacySection[] = [
     ]
   },
   {
+    slug: 'harness-engineering',
+    title: 'Harness Engineering',
+    summary:
+      'Agent-first Codex harness workflow with dashboard-managed worktrees, generated task artifacts, parallel subtasks, browser validation, and auto commit/push.',
+    sources: [
+      '/api/harness/config',
+      '/api/harness/runs',
+      '/api/harness/ws?runId=<id>&channel=orchestrator',
+      '/api/ai-cli/session/codex-harness'
+    ]
+  },
+  {
     slug: 'github-waffle',
     title: 'GitHub Waffle',
     summary: 'Legacy GitHub contribution waffle chart from the Pi2 Angular portal.',

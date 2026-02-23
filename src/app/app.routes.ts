@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { BitcoinLotteryComponent } from './bitcoin-lottery.component';
 import { AiCliTerminalComponent } from './ai-cli-terminal.component';
+import { HarnessEngineeringComponent } from './harness-engineering.component';
 import { ConfigComponent } from './config.component';
 import { DashboardComponent } from './dashboard.component';
 import { NewsSummaryComponent } from './news-summary.component';
@@ -87,6 +88,11 @@ export const routes: Routes = [
     component: AiCliTerminalComponent,
     data: { provider: 'gemini' },
     title: 'Gemini Code CLI'
+  },
+  {
+    path: 'section/harness-engineering',
+    component: HarnessEngineeringComponent,
+    title: 'Harness Engineering'
   },
   {
     path: 'section/:slug',

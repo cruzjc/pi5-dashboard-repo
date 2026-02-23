@@ -262,6 +262,29 @@ function createAiCliFeature(options) {
         canLogout: true
       }
     },
+    'codex-harness': {
+      id: 'codex-harness',
+      title: 'Harness Engineering (Codex)',
+      binary: 'codex',
+      workspace: path.join(HOME_DIR, 'codex-harness-workspace'),
+      makeMainArgs() {
+        return [
+          '--dangerously-bypass-approvals-and-sandbox',
+          '-C',
+          this.workspace,
+          '--add-dir',
+          HOME_DIR,
+          '--no-alt-screen'
+        ];
+      },
+      auth: {
+        login: ['login', '--device-auth'],
+        status: ['login', 'status'],
+        logout: ['logout'],
+        canStatus: true,
+        canLogout: true
+      }
+    },
     claude: {
       id: 'claude',
       title: 'Claude Code CLI',
@@ -532,7 +555,7 @@ function createAiCliFeature(options) {
     const merged = `${r.stdout}${r.stderr}`.trim();
     let parsed;
 
-    if (providerId === 'codex') parsed = parseCodexAuthStatus(merged);
+    if (providerId === 'codex' || providerId === 'codex-harness') parsed = parseCodexAuthStatus(merged);
     else if (providerId === 'claude') parsed = parseClaudeAuthStatus(merged);
     else parsed = { status: 'unknown', detail: merged || r.error || '' };
 

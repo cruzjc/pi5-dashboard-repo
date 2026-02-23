@@ -1,0 +1,470 @@
+<section class='hero'>
+  <div class='copy'>
+    <p class='eyebrow'>Harness Engineering</p>
+    <h1>Agent-First Codex Workflow</h1>
+    <p class='lead'>
+      Dashboard-managed worktrees, generated `AGENTS.md`/task docs, parallel Codex subtasks (up to {{ maxSubtasks() }}),
+      browser validation via Playwright, and automatic commit/push to an `origin` task branch.
+    </p>
+    <p class='lead subtle'>
+      This section is intentionally opinionated: it is designed for the harness methodology, not raw ad hoc terminal usage.
+    </p>
+  </div>
+
+  <div class='status-panel'>
+    <div class='row'>
+      <span class='k'>Codex</span>
+      <span class='v mono'>{{ codexVersion() }}</span>
+    </div>
+    <div class='row'>
+      <span class='k'>Codex Auth</span>
+      <span class='v badge' [class.good]='authStatusClass() === "good"' [class.warn]='authStatusClass() === "warn"' [class.bad]='authStatusClass() === "bad"'>
+        {{ authStatusLabel() }}
+      </span>
+    </div>
+    <div class='row'>
+      <span class='k'>Playwright</span>
+      <span class='v'>{{ config()?.browser?.installed ? 'Installed' : 'Missing' }}</span>
+    </div>
+    <div class='row'>
+      <span class='k'>Chromium</span>
+      <span class='v'>{{ config()?.browser?.chromiumVersion || (config()?.browser?.chromiumPath ? 'Detected' : 'Missing') }}</span>
+    </div>
+    <div class='row'>
+      <span class='k'>Browser Ready</span>
+      <span class='v badge' [class.good]='browserReady()' [class.warn]='!browserReady()'>{{ browserReady() ? 'Ready' : 'Not Ready' }}</span>
+    </div>
+  </div>
+</section>
+
+@if (toast()) {
+  <p class='toast'>{{ toast() }}</p>
+}
+
+@if (error()) {
+  <p class='error-banner'>{{ error() }}</p>
+}
+
+<section class='warning'>
+  <p>
+    <strong>Full-access / auto-push mode is enabled for harness runs.</strong>
+    The harness can modify files under <code>{{ config()?.paths?.homeDir || '/home/jeanclydecruz' }}</code> and will
+    automatically commit and push to <code>origin</code> on a new task branch if the pipeline succeeds.
+  </p>
+</section>
+
+<section class='grid top-grid'>
+  <div class='card setup-card'>
+    <header>
+      <h2>Run Setup</h2>
+      <p>
+        Define the objective and constraints. The harness will scaffold task artifacts (including <code>AGENTS.md</code>, task spec,
+        run journal, review checklist, and verification plan) before planning and execution.
+      </p>
+    </header>
+
+    <div class='field-grid'>
+      <label class='field'>
+        <span>Task Title</span>
+        <input type='text' [value]='title()' (input)='onTextInput(title, $event)' placeholder='Example: Add portfolio export endpoint + dashboard panel' />
+      </label>
+
+      <label class='field'>
+        <span>Repo Path (under shared-repos)</span>
+        <input type='text' [value]='repoPath()' (input)='onTextInput(repoPath, $event)' placeholder='my-repo or /home/jeanclydecruz/shared-repos/my-repo' />
+      </label>
+
+      <label class='field full'>
+        <span>Objective</span>
+        <textarea rows='4' [value]='objective()' (input)='onTextInput(objective, $event)' placeholder='Describe the target change, user outcome, and what the harness should implement.'></textarea>
+      </label>
+
+      <label class='field full'>
+        <span>Success Criteria</span>
+        <textarea rows='3' [value]='successCriteria()' (input)='onTextInput(successCriteria, $event)' placeholder='Concrete completion signals: endpoints, UI behavior, tests, build, deployment checks, etc.'></textarea>
+      </label>
+
+      <label class='field full'>
+        <span>Constraints / Notes</span>
+        <textarea rows='3' [value]='constraints()' (input)='onTextInput(constraints, $event)' placeholder='Architecture constraints, files to avoid touching, performance requirements, rollout notes.'></textarea>
+      </label>
+
+      <label class='field'>
+        <span>Base Branch (optional)</span>
+        <input type='text' [value]='baseBranch()' (input)='onTextInput(baseBranch, $event)' placeholder='Defaults to repo HEAD branch' />
+      </label>
+
+      <label class='field'>
+        <span>Parallel Subtasks (0-{{ maxSubtasks() }})</span>
+        <input type='number' min='0' [max]='maxSubtasks()' [value]='subtaskCount()' (input)='onSubtaskCountChange($event)' />
+      </label>
+
+      <label class='field full'>
+        <span>Verification Commands (one per line)</span>
+        <textarea rows='4' [value]='verificationCommandsText()' (input)='onTextInput(verificationCommandsText, $event)' placeholder='npm test&#10;npm run build'></textarea>
+      </label>
+
+      <label class='field full'>
+        <span>Browser Validation URLs (one per line, optional)</span>
+        <textarea rows='3' [value]='browserScenarioUrls()' (input)='onTextInput(browserScenarioUrls, $event)' placeholder='https://localhost:3000/&#10;http://192.168.4.13/section/trading'></textarea>
+      </label>
+
+      <label class='field full'>
+        <span>Subtask Prompts (optional; separate prompts with a line containing ---)</span>
+        <textarea rows='5' [value]='subtaskPromptsText()' (input)='onTextInput(subtaskPromptsText, $event)' placeholder='Subtask 1 scope...&#10;---&#10;Subtask 2 scope...'></textarea>
+      </label>
+    </div>
+
+    <div class='persona-row'>
+      <div class='mode-toggle' role='group' aria-label='Harness liaison persona mode'>
+        <button type='button' class='mini' [class.active]='personaMode() === "selected"' (click)='onPersonaModeChange("selected")'>Selected Persona</button>
+        <button type='button' class='mini' [class.active]='personaMode() === "random"' (click)='onPersonaModeChange("random")'>Random Persona</button>
+      </div>
+
+      <label class='persona-select'>
+        <span>Liaison Persona</span>
+        <select [value]='personaId()' (change)='onPersonaSelect($event)' [disabled]='personas().length === 0'>
+          @for (p of personas(); track p.id) {
+            <option [value]='p.id'>{{ p.name }} @if (p.voiceId) { ({{ p.voiceId }}) }</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <div class='button-row'>
+      <button class='primary' type='button' (click)='startRun()' [disabled]='!canStartRun()'>
+        @if (createBusy()) { Starting Run... } @else { Start Autonomous Run }
+      </button>
+      <button class='ghost' type='button' (click)='refreshAll()' [disabled]='loading() || createBusy()'>Refresh</button>
+      <button class='ghost' type='button' (click)='copyHarnessWorkspace()'>Copy Harness Workspace</button>
+      <button class='ghost' type='button' (click)='copySharedRepos()'>Copy Shared Repos</button>
+    </div>
+
+    <div class='meta-grid compact'>
+      <div class='meta'>
+        <span class='k'>Harness Workspace</span>
+        <code class='v path'>{{ harnessWorkspacePath() }}</code>
+      </div>
+      <div class='meta'>
+        <span class='k'>Shared Repos</span>
+        <code class='v path'>{{ sharedReposPath() }}</code>
+      </div>
+      <div class='meta'>
+        <span class='k'>Harness Data</span>
+        <code class='v path'>{{ config()?.paths?.harnessDataDir || '—' }}</code>
+      </div>
+    </div>
+  </div>
+
+  <div class='card auth-card'>
+    <header>
+      <h2>Codex Auth (Harness Provider)</h2>
+      <p>
+        Uses the dedicated <code>codex-harness</code> provider workspace for login/status/logout. Start login to show device/browser auth hints.
+      </p>
+    </header>
+
+    <div class='button-row'>
+      <button class='primary' type='button' (click)='loginCodex()' [disabled]='authBusy() || authJobRunning()'>Login</button>
+      <button class='ghost' type='button' (click)='refreshAuthStatus()' [disabled]='authBusy()'>Refresh Auth Status</button>
+      <button class='ghost' type='button' (click)='logoutCodex()' [disabled]='authBusy()'>Logout</button>
+      <button class='danger' type='button' (click)='stopAuthJob()' [disabled]='authBusy() || !authJobRunning()'>Stop Auth Job</button>
+    </div>
+
+    <div class='meta-grid compact'>
+      <div class='meta'>
+        <span class='k'>Status</span>
+        <span class='v'>{{ authStatusLabel() }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Detail</span>
+        <span class='v'>{{ authProvider()?.authStatus?.detail || config()?.codex?.authStatus?.detail || '—' }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Auth Stream</span>
+        <span class='v'>{{ authConnected() ? 'Connected' : (authJobRunning() ? 'Reconnecting' : 'Idle') }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Workspace</span>
+        <code class='v path'>{{ authProvider()?.workspace || harnessWorkspacePath() }}</code>
+      </div>
+    </div>
+
+    @if (authHints().length) {
+      <div class='auth-hints'>
+        <h3>Auth Hints</h3>
+        <ul>
+          @for (hint of authHints(); track $index) {
+            <li>
+              @if (authHintUrl(hint)) {
+                <a [href]='authHintUrl(hint)' target='_blank' rel='noopener noreferrer'>{{ authHintLabel(hint) }}</a>
+              } @else {
+                <span>{{ authHintLabel(hint) }}</span>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <pre class='auth-log'>{{ authLog() || 'No auth output yet.' }}</pre>
+  </div>
+</section>
+
+<section class='grid lower-grid'>
+  <div class='card runs-card'>
+    <header>
+      <h2>Runs</h2>
+      <p>Recent harness runs (active + historical snapshots).</p>
+    </header>
+
+    @if (runs().length === 0) {
+      <p class='empty'>No runs yet.</p>
+    } @else {
+      <div class='run-list'>
+        @for (run of runs(); track trackRun($index, run)) {
+          <button type='button' class='run-item' [class.active]='isRunSelected(run)' (click)='selectRun(run)'>
+            <div class='run-title-row'>
+              <span class='run-title'>{{ run.task?.title || run.id }}</span>
+              <span class='badge small' [class.good]='statusBadgeClass(run.status) === "good"' [class.info]='statusBadgeClass(run.status) === "info"' [class.bad]='statusBadgeClass(run.status) === "bad"' [class.warn]='statusBadgeClass(run.status) === "warn"'>
+                {{ run.status || 'unknown' }}
+              </span>
+            </div>
+            <div class='run-meta'>
+              <span class='mono'>{{ run.id }}</span>
+              <span>{{ formatDate(run.updatedAt || run.createdAt || null) }}</span>
+            </div>
+            <div class='run-meta'>
+              <span>{{ run.currentStage || '—' }}</span>
+              <span>{{ run.finalBranch || run.worktrees?.parent?.branch || '—' }}</span>
+            </div>
+          </button>
+        }
+      </div>
+    }
+  </div>
+
+  <div class='card status-card'>
+    <header>
+      <h2>Run Status</h2>
+      <p>Stage timeline, branch/worktree info, and finalize state for the selected run.</p>
+    </header>
+
+    @if (!selectedRun()) {
+      <p class='empty'>Select a run to inspect status, terminals, and artifacts.</p>
+    } @else {
+      <div class='button-row'>
+        <button class='danger' type='button' (click)='stopSelectedRun()' [disabled]='actionBusy() || !runIsActive()'>Stop Run</button>
+        <button class='ghost' type='button' (click)='refreshSelectedRunAction()'>Refresh Run</button>
+      </div>
+
+      <div class='meta-grid'>
+        <div class='meta'>
+          <span class='k'>Run ID</span>
+          <span class='v mono'>{{ selectedRun()?.id }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Status</span>
+          <span class='v badge' [class.good]='statusBadgeClass(selectedRunStatus()) === "good"' [class.info]='statusBadgeClass(selectedRunStatus()) === "info"' [class.bad]='statusBadgeClass(selectedRunStatus()) === "bad"' [class.warn]='statusBadgeClass(selectedRunStatus()) === "warn"'>{{ selectedRunStatus() }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Current Stage</span>
+          <span class='v'>{{ selectedRunStage() }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Started</span>
+          <span class='v'>{{ formattedRunStartedAt() }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Finished</span>
+          <span class='v'>{{ formattedRunFinishedAt() }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Branch</span>
+          <span class='v mono'>{{ selectedRunBranch() }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Commit</span>
+          <span class='v mono'>{{ selectedRun()?.finalCommit || '—' }}</span>
+        </div>
+        <div class='meta'>
+          <span class='k'>Parent Worktree</span>
+          <code class='v path'>{{ selectedRun()?.worktrees?.parent?.path || selectedRun()?.worktrees?.baseRoot || '—' }}</code>
+        </div>
+      </div>
+
+      <div class='timeline'>
+        @for (stage of selectedRun()?.stages || []; track trackStage($index, stage)) {
+          <div class='stage-item' [class.done]='stageClass(stage) === "done"' [class.running]='stageClass(stage) === "running"' [class.failed]='stageClass(stage) === "failed"' [class.skipped]='stageClass(stage) === "skipped"'>
+            <div class='stage-head'>
+              <strong>{{ stage.key }}</strong>
+              <span class='badge small' [class.good]='stageClass(stage) === "done"' [class.info]='stageClass(stage) === "running"' [class.bad]='stageClass(stage) === "failed"' [class.warn]='stageClass(stage) === "skipped"'>{{ stage.status }}</span>
+            </div>
+            <div class='stage-meta'>
+              <span>{{ formatDate(stage.startedAt || null) }}</span>
+              <span>{{ formatDuration(stage.durationMs) }}</span>
+            </div>
+            @if (stage.detail) {
+              <p class='stage-detail'>{{ stage.detail }}</p>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+</section>
+
+<section class='card terminal-card'>
+  <header>
+    <h2>Harness Terminals</h2>
+    <p>
+      Live stream of orchestrator/parent/subtask/browser worker channels. Read-only terminal view with reconnect support for active runs.
+    </p>
+  </header>
+
+  <div class='tab-row'>
+    @for (name of channels(); track name) {
+      <button type='button' class='mini tab' [class.active]='terminalTabClass(name) === "active"' (click)='chooseChannel(name)'>
+        {{ name }}
+      </button>
+    }
+  </div>
+
+  <div class='meta-grid compact terminal-meta'>
+    <div class='meta'>
+      <span class='k'>Channel</span>
+      <span class='v'>{{ terminalChannel() }}</span>
+    </div>
+    <div class='meta'>
+      <span class='k'>Stream</span>
+      <span class='v'>{{ terminalConnected() ? 'Connected' : 'Disconnected' }}</span>
+    </div>
+    <div class='meta'>
+      <span class='k'>PID</span>
+      <span class='v mono'>{{ selectedChannelSummary()?.pid ?? '—' }}</span>
+    </div>
+    <div class='meta'>
+      <span class='k'>Running</span>
+      <span class='v'>{{ selectedChannelSummary()?.running ? 'Yes' : 'No' }}</span>
+    </div>
+  </div>
+
+  @if (terminalError()) {
+    <p class='local-error'>{{ terminalError() }}</p>
+  }
+
+  <div class='terminal-frame'>
+    <div #termHost class='terminal-host' aria-label='Harness terminal logs'></div>
+    @if (terminalOverlayText()) {
+      <div class='overlay'>{{ terminalOverlayText() }}</div>
+    }
+  </div>
+</section>
+
+<section class='grid lower-grid'>
+  <div class='card artifacts-card'>
+    <header>
+      <h2>Artifacts</h2>
+      <p>Generated docs, logs, browser screenshots, verification outputs, and summaries.</p>
+    </header>
+
+    @if (!selectedRun()) {
+      <p class='empty'>Select a run to browse artifacts.</p>
+    } @else if (artifactsSorted().length === 0) {
+      <p class='empty'>No artifacts yet.</p>
+    } @else {
+      <div class='artifact-layout'>
+        <div class='artifact-list'>
+          @for (artifact of artifactsSorted(); track trackArtifact($index, artifact)) {
+            <button type='button' class='artifact-item' [class.active]='selectedArtifactId() === artifact.id' (click)='selectArtifact(artifact)'>
+              <div class='artifact-head'>
+                <span class='artifact-name'>{{ artifact.name }}</span>
+                <span class='artifact-id mono'>{{ artifact.id }}</span>
+              </div>
+              <div class='artifact-meta'>
+                <span>{{ artifact.type || 'file' }}</span>
+                <span>{{ formatBytes(artifact.size) }}</span>
+              </div>
+              <div class='artifact-meta'>
+                <span class='mono'>{{ artifact.relPath }}</span>
+              </div>
+            </button>
+          }
+        </div>
+
+        <div class='artifact-preview'>
+          @if (!selectedArtifact()) {
+            <p class='empty'>Select an artifact to preview.</p>
+          } @else {
+            <div class='preview-head'>
+              <div>
+                <h3>{{ selectedArtifact()?.name }}</h3>
+                <p class='mono'>{{ selectedArtifact()?.relPath }}</p>
+              </div>
+              <a class='mini-link' [href]='selectedArtifactRawUrl()' target='_blank' rel='noopener noreferrer'>Open Raw</a>
+            </div>
+
+            @if (artifactPreviewError()) {
+              <p class='local-error'>{{ artifactPreviewError() }}</p>
+            }
+
+            @if (artifactPreviewBusy()) {
+              <p class='empty'>Loading preview...</p>
+            } @else if (artifactPreviewImageUrl()) {
+              <img class='artifact-image' [src]='artifactPreviewImageUrl()' [alt]='selectedArtifact()?.name || "artifact image"' />
+            } @else {
+              <pre class='artifact-text'>{{ artifactPreviewText() || 'No preview loaded yet.' }}</pre>
+            }
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <div class='card summary-card'>
+    <header>
+      <h2>Liaison Summary / Narration</h2>
+      <p>
+        Generates a final run summary in the selected/random persona style using the harness summary artifact, with optional TTS audio if keys are configured.
+      </p>
+    </header>
+
+    <div class='button-row'>
+      <button class='ghost' type='button' (click)='narrateSummary()' [disabled]='narrationBusy() || !selectedRun()'>
+        @if (narrationBusy()) { Generating Summary... } @else { Narrate Run Summary }
+      </button>
+    </div>
+
+    @if (narrationError()) {
+      <p class='local-error'>{{ narrationError() }}</p>
+    }
+
+    <div class='meta-grid compact'>
+      <div class='meta'>
+        <span class='k'>Persona</span>
+        <span class='v'>{{ narrationPersona() || selectedRun()?.persona?.name || '—' }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Generated</span>
+        <span class='v'>{{ formattedNarrationAt() }}</span>
+      </div>
+      <div class='meta'>
+        <span class='k'>Summary Source</span>
+        <span class='v'>Harness run summary artifact / run snapshot</span>
+      </div>
+    </div>
+
+    <textarea class='summary-text' rows='12' [value]='narrationSummary() || selectedRun()?.summaryText || ""' readonly></textarea>
+
+    @if (narrationAudioUrl()) {
+      <audio class='audio-player' controls [src]='narrationAudioUrl()'></audio>
+    }
+
+    @if (selectedRun()?.pushResult) {
+      <details class='push-output'>
+        <summary>Push Result</summary>
+        <pre>{{ pushResultJson() }}</pre>
+      </details>
+    }
+  </div>
+</section>
